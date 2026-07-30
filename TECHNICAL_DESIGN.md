@@ -3,6 +3,8 @@
 **Decentralized peer-to-peer escrow marketplace on GIWA L2.**
 Funds are locked in an audited smart contract and only released when both parties confirm the deal went through — no intermediary holds the money.
 
+The escrow logic is a **Solidity** smart contract; the web application is a full **C#/.NET** stack (Blazor Server) that talks to that contract via **Nethereum**, with MetaMask as the signing wallet. No custom backend chain node, indexer, or JS frontend framework — one language (C#) end to end on the app side, one language (Solidity) on the trust-critical side.
+
 - **Live demo:** https://ubuntupay.africa
 - **Verified contract:** [`0xabBDDF83285daa096381E5E4b312afCACA36686a`](https://sepolia-explorer.giwa.io/address/0xabBDDF83285daa096381E5E4b312afCACA36686a) on GIWA Sepolia (chain ID `91342`)
 - **Repo:** https://github.com/block0xhash/ubuntu-escrow
