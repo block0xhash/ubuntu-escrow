@@ -1,66 +1,45 @@
-## Foundry
+# Escrow contract
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+Solidity smart contract for Ubuntu Escrow, built with [Foundry](https://book.getfoundry.sh/). See the [root README](../README.md) for the full project and [TECHNICAL_DESIGN.md](../TECHNICAL_DESIGN.md) for architecture and contract function reference.
 
-Foundry consists of:
+- **Deployed at:** [`0xabBDDF83285daa096381E5E4b312afCACA36686a`](https://sepolia-explorer.giwa.io/address/0xabBDDF83285daa096381E5E4b312afCACA36686a) on GIWA Sepolia (chain `91342`), verified
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
-
-## Documentation
-
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
+## Build & test
 
 ```shell
 $ forge build
-```
-
-### Test
-
-```shell
 $ forge test
 ```
 
-### Format
+## Deploy
+
+Requires `TEST_PRIVATE_KEY` and `TREASURY_ADDRESS` set in `.env` (see `.env` — never committed).
 
 ```shell
-$ forge fmt
+$ forge script script/DeployEscrow.s.sol:DeployEscrow \
+    --rpc-url https://sepolia-rpc.giwa.io \
+    --chain-id 91342 \
+    --broadcast \
+    --legacy
 ```
 
-### Gas Snapshots
+## Verify
 
 ```shell
-$ forge snapshot
+$ forge verify-contract \
+    --chain 91342 \
+    --verifier blockscout \
+    --verifier-url https://sepolia-explorer.giwa.io/api/ \
+    --constructor-args $(cast abi-encode "constructor(address)" <treasury address>) \
+    <deployed address> \
+    src/Escrow.sol:Escrow
 ```
 
-### Anvil
+## Other useful commands
 
 ```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
+$ forge fmt                # format
+$ forge snapshot           # gas snapshots
+$ anvil                    # local node
+$ cast <subcommand>        # chain/contract interaction
 ```
