@@ -67,6 +67,8 @@ Created ──deposit()──▶ Funded ──markShipped()──▶ Shipped ─
 | `claimTimeout(dealId)` | Anyone | If shipped >7 days with no buyer response, releases funds the same way — prevents funds getting stuck on an unresponsive buyer |
 | `raiseDispute` / `resolveDispute` | Party / contract owner | Freezes a deal and lets the owner arbitrate a refund or release |
 
+> **Scope note:** Dispute resolution exists at the contract level (`raiseDispute`/`resolveDispute`) and is covered by a passing test, but **it is not exposed in the MVP frontend** — there is no UI flow for a buyer or seller to raise a dispute, or for an admin to resolve one. This is a deliberate scope cut for the MVP, not an oversight, and is called out again in the roadmap table below.
+
 **Security:** `nonReentrant` on every fund-moving function, `Ownable` gating admin-only paths (treasury changes, dispute resolution), and the private-deal restriction is enforced by the contract itself (`require(deal.targetBuyer == address(0) || deal.targetBuyer == msg.sender)`) — not just hidden by the UI, so it can't be bypassed by calling the contract directly.
 
 **Tested:** 7 Foundry tests covering the full happy path, fee split, auto-release timeout, dispute refund, and both private-deal enforcement cases (correct buyer succeeds, wrong buyer reverts).
@@ -75,7 +77,7 @@ Created ──deposit()──▶ Funded ──markShipped()──▶ Shipped ─
 
 | Built now | Roadmap |
 |---|---|
-| Full create → fund → ship → confirm → release lifecycle, on-chain, tested and verified | Dispute resolution UI (contract supports it; frontend panel not wired up yet) |
+| Full create → fund → ship → confirm → release lifecycle, on-chain, tested and verified | **Dispute resolution UI** — not in the MVP. Contract-level `raiseDispute`/`resolveDispute` exist and are tested, but no frontend flow calls them |
 | Public and private (restricted-buyer) deal types, enforced on-chain | Admin panel actions (currently placeholder) |
 | Wallet-native UX (MetaMask), auto network-switch to GIWA Sepolia | Server-side verification of submitted tx hashes against chain state (currently trusts the client) |
 | Per-deal transaction audit trail linking to the block explorer | Collateral/staking mechanism (field exists in the contract, not yet exposed in the UI) |
