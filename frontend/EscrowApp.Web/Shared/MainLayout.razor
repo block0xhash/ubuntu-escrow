@@ -1,0 +1,83 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject WalletStateService WalletState
+@inject IJSRuntime JS
+
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Fixed="false" Class="px-6" Style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: white;">
+        <MudIcon Icon="@Icons.Material.Filled.Security" Size="Size.Large" Class="mr-3 text-success" />
+        <div class="d-flex align-center mr-6">
+            <MudText Typo="Typo.h5" Class="fw-bold tracking-wide" Style="letter-spacing: 0.5px;">UBUNTU ESCROW</MudText>
+            <MudText Typo="Typo.caption" Class="ml-2 text-success fw-bold" Style="opacity: 0.9;">on GIWA</MudText>
+        </div>
+        
+        <MudNavMenu Class="d-flex flex-row gap-2 align-center pa-0" Style="background: transparent;">
+            <MudNavLink Href="" Match="NavLinkMatch.All" Class="rounded px-3 py-2 text-white hover-bg" Icon="@Icons.Material.Filled.Dashboard">Overview</MudNavLink>
+            <MudNavLink Href="deals/create" Match="NavLinkMatch.Prefix" Class="rounded px-3 py-2 text-white hover-bg" Icon="@Icons.Material.Filled.AddCircle">Create Deal</MudNavLink>
+            <MudNavLink Href="market" Match="NavLinkMatch.Prefix" Class="rounded px-3 py-2 text-white hover-bg" Icon="@Icons.Material.Filled.Storefront">Market</MudNavLink>
+            <MudNavLink Href="deals/my" Match="NavLinkMatch.Prefix" Class="rounded px-3 py-2 text-white hover-bg" Icon="@Icons.Material.Filled.ListAlt">My Deals</MudNavLink>
+            <MudNavLink Href="admin" Match="NavLinkMatch.Prefix" Class="rounded px-3 py-2 text-white hover-bg" Icon="@Icons.Material.Filled.AdminPanelSettings">Admin</MudNavLink>
+        </MudNavMenu>
+
+        <MudSpacer />
+
+        <!-- Wallet Connect / Status Badge -->
+        <div class="d-flex align-center gap-3">
+            @if (string.IsNullOrEmpty(WalletState.ConnectedWallet))
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.AccountBalanceWallet" OnClick="ConnectWallet" Class="rounded-pill px-4 fw-bold shadow-sm">
+                    Connect Wallet
+                </MudButton>
+            }
+            else
+            {
+                <div class="d-flex align-center bg-dark px-3 py-1.5 rounded-pill border border-success" style="background: rgba(16, 185, 129, 0.1) !important;">
+                    <MudBadge Dot="true" Color="Color.Success" Overlap="true" Class="mr-2">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Color="Color.Success" />
+                    </MudBadge>
+                    <span style="font-family: monospace; font-size: 13px;" class="text-success fw-bold mr-2">
+                        @TruncateAddress(WalletState.ConnectedWallet)
+                    </span>
+                    <MudIconButton Icon="@Icons.Material.Filled.Logout" Size="Size.Small" Color="Color.Error" OnClick="DisconnectWallet" title="Disconnect" />
+                </div>
+            }
+        </div>
+    </MudAppBar>
+
+    <MudMainContent Class="pa-6" Style="background-color: #f8fafc; min-height: 100vh;">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    protected override void OnInitialized()
+    {
+        WalletState.OnWalletChanged += StateHasChanged;
+    }
+
+    private async Task ConnectWallet()
+    {
+        await WalletState.ConnectAsync();
+    }
+
+    private async Task DisconnectWallet()
+    {
+        await WalletState.DisconnectAsync();
+    }
+
+    private string TruncateAddress(string addr) =>
+        string.IsNullOrEmpty(addr) || addr.Length < 10 ? addr : $"{addr.Substring(0, 6)}...{addr.Substring(addr.Length - 4)}";
+
+    public void Dispose()
+    {
+        WalletState.OnWalletChanged -= StateHasChanged;
+    }
+}

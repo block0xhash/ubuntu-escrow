@@ -1,0 +1,148 @@
+@page "/deals/my"
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@using MudBlazor
+@using EscrowApp.Web.Models
+
+<div class="mx-auto" style="max-width: 1050px;">
+    <!-- Header Card Banner -->
+    <div class="d-flex align-center justify-space-between mb-6 pa-6" style="background: white; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.02);">
+        <div class="d-flex align-center gap-4">
+            <div class="pa-3.5 rounded-xl" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); color: #2563eb;">
+                <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Large" />
+            </div>
+            <div>
+                <MudText Typo="Typo.h5" Class="fw-bold" Style="color: #0f172a; letter-spacing: -0.5px;">My Deals Dashboard</MudText>
+                <MudText Typo="Typo.body2" Style="color: #64748b;" Class="mt-0.5">Manage and track escrow agreements linked to your connected MetaMask wallet</MudText>
+            </div>
+        </div>
+        <MudButton Variant="Variant.Outlined" 
+                   Color="Color.Primary" 
+                   Size="Size.Medium" 
+                   StartIcon="@Icons.Material.Filled.AccountBalanceWallet" 
+                   OnClick="LoadMyDealsAsync"
+                   Style="border-radius: 10px; text-transform: none; font-weight: 600; border-color: #cbd5e1; color: #334155;">
+            Refresh Wallet
+        </MudButton>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="d-flex justify-center align-center py-16">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+        </div>
+    }
+    else if (myDeals == null || !myDeals.Any())
+    {
+        <MudPaper Elevation="0" Class="pa-16 text-center" Style="border-radius: 16px; border: 2px dashed #cbd5e1; background-color: #ffffff;">
+            <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Large" Style="color: #94a3b8;" Class="mb-3" />
+            <MudText Typo="Typo.h6" Style="color: #334155; font-weight: 600;">No Connected Deals</MudText>
+            <MudText Typo="Typo.body2" Style="color: #64748b;" Class="mt-1">No agreements match your currently active wallet address.</MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <MudGrid Spacing="4">
+            @foreach (var deal in myDeals)
+            {
+                <MudItem xs="12" md="6" @key="deal.DealId">
+                    <MudCard Elevation="2" Style="border-radius: 16px; border: 1px solid #e2e8f0; height: 100%; display: flex; flex-direction: column; justify-content: space-between; background: white;">
+                        <div>
+                            <div class="pa-5 d-flex justify-space-between align-start" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-bottom: 1px solid #e2e8f0; border-top-left-radius: 16px; border-top-right-radius: 16px;">
+                                <div>
+                                    <MudText Typo="Typo.caption" Style="color: #64748b; font-weight: 700; letter-spacing: 0.5px;">DEAL #@deal.DealId</MudText>
+                                    <MudText Typo="Typo.subtitle1" Class="fw-bold mt-1" Style="color: #0f172a;">@deal.Metadata.Title</MudText>
+                                </div>
+                                <MudChip T="string" Color="Color.Success" Variant="Variant.Filled" Size="Size.Small" Class="fw-bold px-3 py-1" Style="font-size: 0.9rem;">
+                                    @deal.Metadata.AmountEth ETH
+                                </MudChip>
+                            </div>
+                            <MudCardContent Class="pa-5">
+                                <MudText Typo="Typo.body2" Style="color: #475569; min-height: 44px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5;" Class="mb-4">
+                                    @deal.Metadata.Description
+                                </MudText>
+                                <div class="d-flex align-center justify-space-between pt-3" style="border-top: 1px solid #f1f5f9;">
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info" Style="font-weight: 600;">
+                                        @deal.Metadata.DealType
+                                    </MudChip>
+                                    <div class="d-flex align-center gap-1">
+                                        <span style="@($"height: 8px; width: 8px; border-radius: 50%; background-color: {(deal.Metadata.Status == "Funded" ? "#10b981" : "#f59e0b")}; display: inline-block;")"></span>
+                                        <MudText Typo="Typo.caption" Class="fw-bold" Style="@($"color: {(deal.Metadata.Status == "Funded" ? "#10b981" : "#d97706")};")">
+                                            @deal.Metadata.Status
+                                        </MudText>
+                                    </div>
+                                </div>
+                            </MudCardContent>
+                        </div>
+                        <MudCardActions Class="pa-5 pt-0">
+                            <MudButton Variant="Variant.Filled" 
+                                       Color="Color.Primary" 
+                                       Size="Size.Large" 
+                                       FullWidth="true" 
+                                       StartIcon="@Icons.Material.Filled.Launch"
+                                       OnClick="() => ViewDeal(deal.DealId)"
+                                       Style="border-radius: 10px; font-weight: 600; text-transform: none; letter-spacing: 0.3px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);">
+                                Open Deal Workspace
+                            </MudButton>
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+</div>
+
+@code {
+    private List<DealDetailResponse>? myDeals;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMyDealsAsync();
+    }
+
+    private async Task LoadMyDealsAsync()
+    {
+        isLoading = true;
+        try
+        {
+            var accounts = await JS.InvokeAsync<string[]>("eval", "window.ethereum ? window.ethereum.request({ method: 'eth_accounts' }) : []");
+            string wallet = accounts != null && accounts.Length > 0 ? accounts[0] : string.Empty;
+
+            var allDeals = await Http.GetFromJsonAsync<List<DealDetailResponse>>("api/deals");
+            if (allDeals != null && !string.IsNullOrEmpty(wallet))
+            {
+                myDeals = allDeals.Where(d => 
+                    (d.Metadata.SellerWallet != null && d.Metadata.SellerWallet.Equals(wallet, StringComparison.OrdinalIgnoreCase)) ||
+                    (d.Metadata.BuyerWallet != null && d.Metadata.BuyerWallet.Equals(wallet, StringComparison.OrdinalIgnoreCase)) ||
+                    (d.Metadata.TargetBuyerWallet != null && d.Metadata.TargetBuyerWallet.Equals(wallet, StringComparison.OrdinalIgnoreCase))
+                ).ToList();
+            }
+            else
+            {
+                myDeals = new List<DealDetailResponse>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+            myDeals = new List<DealDetailResponse>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ViewDeal(long dealId)
+    {
+        Navigation.NavigateTo($"/deals/{dealId}");
+    }
+
+    public class DealDetailResponse
+    {
+        public long DealId { get; set; }
+        public DealMetadataModel Metadata { get; set; } = new();
+    }
+}

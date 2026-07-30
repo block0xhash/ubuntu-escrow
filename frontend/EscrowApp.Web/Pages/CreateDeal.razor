@@ -1,0 +1,11 @@
+@page "/create"
+@inject NavigationManager Navigation
+
+@code {
+    // This legacy page only wrote off-chain metadata (no on-chain createDeal call),
+    // so deals made here could never actually be funded. Superseded by /deals/create.
+    protected override void OnInitialized()
+    {
+        Navigation.NavigateTo("/deals/create", replace: true);
+    }
+}

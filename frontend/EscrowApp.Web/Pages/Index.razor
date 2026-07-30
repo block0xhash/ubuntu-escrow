@@ -1,0 +1,128 @@
+@page "/"
+@inject NavigationManager Navigation
+@using MudBlazor
+
+<div class="mx-auto" style="max-width: 1100px;">
+    <!-- Hero Section -->
+    <div class="text-center py-16 px-6 mb-12" style="background: radial-gradient(circle at top, #ffffff 0%, #f1f5f9 100%); border-radius: 24px; border: 1px solid #e2e8f0; box-shadow: 0 20px 40px -15px rgba(0,0,0,0.05); position: relative; overflow: hidden;">
+        
+        <!-- Decorative Background Elements -->
+        <div style="position: absolute; top: -50px; left: -50px; width: 200px; height: 200px; background: rgba(59, 130, 246, 0.05); border-radius: 50%; filter: blur(40px);"></div>
+        <div style="position: absolute; bottom: -50px; right: -50px; width: 250px; height: 250px; background: rgba(16, 185, 129, 0.05); border-radius: 50%; filter: blur(40px);"></div>
+
+        <div style="position: relative; z-index: 1;">
+            <div class="d-inline-flex align-center gap-2 px-4 py-1.5 rounded-pill mb-6" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; font-weight: 700; font-size: 0.85rem; box-shadow: 0 2px 10px rgba(37,99,235,0.1);">
+                <MudIcon Icon="@Icons.Material.Filled.Verified" Size="Size.Small" />
+                Decentralized Trust Protocol on GIWA L2
+            </div>
+            
+            <MudText Typo="Typo.h2" Class="fw-bold mb-4" Style="color: #0f172a; letter-spacing: -1.5px; line-height: 1.15; font-size: 3.5rem;">
+                Secure Peer-to-Peer Escrow <br />
+                <span style="background: linear-gradient(135deg, #2563eb 0%, #10b981 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Powered by Smart Contracts</span>
+            </MudText>
+            
+            <MudText Typo="Typo.body1" Class="mx-auto mb-10" Style="color: #475569; max-width: 700px; font-size: 1.15rem; line-height: 1.7;">
+                Ubuntu Escrow guarantees bulletproof transactions between buyers and sellers. Funds are safely locked in audited on-chain smart contracts until agreement terms are successfully fulfilled.
+            </MudText>
+            
+            <div class="d-flex justify-center gap-5 flex-wrap">
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary" 
+                           Size="Size.Large" 
+                           StartIcon="@Icons.Material.Filled.Storefront"
+                           OnClick="@(() => NavigateTo("/deals/available"))"
+                           Style="border-radius: 12px; padding: 14px 32px; font-weight: 700; text-transform: none; font-size: 1.05rem; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); box-shadow: 0 10px 20px -5px rgba(37, 99, 235, 0.4); transition: transform 0.2s ease;">
+                    Explore Available Deals
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" 
+                           Color="Color.Primary" 
+                           Size="Size.Large" 
+                           StartIcon="@Icons.Material.Filled.AddCircle"
+                           OnClick="@(() => NavigateTo("/deals/create"))"
+                           Style="border-radius: 12px; padding: 14px 32px; font-weight: 700; text-transform: none; font-size: 1.05rem; border: 2px solid #cbd5e1; color: #0f172a; background: white; transition: all 0.2s ease;">
+                    Create New Escrow
+                </MudButton>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Bar -->
+    <MudGrid Spacing="6" Class="mb-16">
+        <MudItem xs="12" md="4">
+            <MudPaper Elevation="0" Class="pa-8 text-center" Style="border-radius: 20px; border: 1px solid #e2e8f0; background: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);">
+                <MudText Typo="Typo.h3" Class="fw-bold mb-2" Style="color: #2563eb; letter-spacing: -1px;">100%</MudText>
+                <MudText Typo="Typo.body1" Style="color: #64748b; font-weight: 600;">Smart Contract Secured</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudPaper Elevation="0" Class="pa-8 text-center" Style="border-radius: 20px; border: 1px solid #e2e8f0; background: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);">
+                <MudText Typo="Typo.h3" Class="fw-bold mb-2" Style="color: #10b981; letter-spacing: -1px;">Instant</MudText>
+                <MudText Typo="Typo.body1" Style="color: #64748b; font-weight: 600;">GIWA L2 Settlement</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudPaper Elevation="0" Class="pa-8 text-center" Style="border-radius: 20px; border: 1px solid #e2e8f0; background: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);">
+                <MudText Typo="Typo.h3" Class="fw-bold mb-2" Style="color: #8b5cf6; letter-spacing: -1px;">Multi-Role</MudText>
+                <MudText Typo="Typo.body1" Style="color: #64748b; font-weight: 600;">Buyer, Seller & Arbiter</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <!-- Features Section -->
+    <div class="mb-12">
+        <div class="text-center mb-10">
+            <MudText Typo="Typo.h3" Class="fw-bold mb-3" Style="color: #0f172a; letter-spacing: -1px;">Uncompromising Security</MudText>
+            <MudText Typo="Typo.body1" Style="color: #64748b; font-size: 1.1rem;">Enterprise-grade architecture built for total transparency and trust.</MudText>
+        </div>
+
+        <MudGrid Spacing="6">
+            <MudItem xs="12" md="4">
+                <MudCard Elevation="0" Style="border-radius: 20px; border: 1px solid #e2e8f0; height: 100%; padding: 32px; background: white; transition: box-shadow 0.3s ease;" Class="hover-card">
+                    <div class="pa-4 rounded-2xl mb-6 d-inline-block" style="background: #eff6ff; color: #2563eb;">
+                        <MudIcon Icon="@Icons.Material.Filled.Lock" Style="font-size: 2.5rem;" />
+                    </div>
+                    <MudText Typo="Typo.h5" Class="fw-bold mb-3" Style="color: #0f172a;">Trustless Locking</MudText>
+                    <MudText Typo="Typo.body1" Style="color: #475569; line-height: 1.7;">
+                        Funds are held in cryptographic smart contracts. Neither party can unilaterally withdraw funds without meeting agreement conditions or mutual resolution.
+                    </MudText>
+                </MudCard>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudCard Elevation="0" Style="border-radius: 20px; border: 1px solid #e2e8f0; height: 100%; padding: 32px; background: white; transition: box-shadow 0.3s ease;" Class="hover-card">
+                    <div class="pa-4 rounded-2xl mb-6 d-inline-block" style="background: #f0fdf4; color: #10b981;">
+                        <MudIcon Icon="@Icons.Material.Filled.Speed" Style="font-size: 2.5rem;" />
+                    </div>
+                    <MudText Typo="Typo.h5" Class="fw-bold mb-3" Style="color: #0f172a;">Lightning Fast L2</MudText>
+                    <MudText Typo="Typo.body1" Style="color: #475569; line-height: 1.7;">
+                        Leveraging GIWA L2 infrastructure ensures near-instantaneous transaction finality with minimal gas fees compared to mainnet execution.
+                    </MudText>
+                </MudCard>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudCard Elevation="0" Style="border-radius: 20px; border: 1px solid #e2e8f0; height: 100%; padding: 32px; background: white; transition: box-shadow 0.3s ease;" Class="hover-card">
+                    <div class="pa-4 rounded-2xl mb-6 d-inline-block" style="background: #f5f3ff; color: #8b5cf6;">
+                        <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Style="font-size: 2.5rem;" />
+                    </div>
+                    <MudText Typo="Typo.h5" Class="fw-bold mb-3" Style="color: #0f172a;">Complete Transparency</MudText>
+                    <MudText Typo="Typo.body1" Style="color: #475569; line-height: 1.7;">
+                        Track every state change, deposit confirmation, and delivery milestone in real time through dedicated deal workspaces and cryptographic audit trails.
+                    </MudText>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+    </div>
+</div>
+
+<style>
+    .hover-card:hover {
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+        transform: translateY(-2px);
+    }
+</style>
+
+@code {
+    private void NavigateTo(string url)
+    {
+        Navigation.NavigateTo(url);
+    }
+}

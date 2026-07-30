@@ -1,0 +1,34 @@
+# ==== Secrets — never commit ====
+.env
+.env.*
+!.env.example
+*.pem
+*.pfx
+contracts/x.sh
+
+# ==== .NET / Blazor build artifacts ====
+frontend/**/bin/
+frontend/**/obj/
+*.user
+*.suo
+
+# ==== Runtime SQLite databases (not source) ====
+frontend/**/*.db
+frontend/**/*.db-shm
+frontend/**/*.db-wal
+
+# ==== Foundry build artifacts ====
+contracts/cache/
+contracts/out/
+!/contracts/broadcast
+contracts/broadcast/*/31337/
+contracts/broadcast/**/dry-run/
+
+# ==== AI tooling config — not part of the product ====
+.claude/
+
+# ==== IDE / OS ====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

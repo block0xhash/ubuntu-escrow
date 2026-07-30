@@ -1,0 +1,264 @@
+@page "/deals/create"
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@inject WalletStateService WalletState
+@implements IDisposable
+@using MudBlazor
+@using EscrowApp.Web.Models
+@using EscrowApp.Web.Services
+
+<div class="mb-6">
+    <MudText Typo="Typo.h4" Class="fw-bold text-primary">📝 Create New Escrow Deal</MudText>
+    <MudText Typo="Typo.body2" Class="text-secondary">Initialize a Public open-market deal or a Private directed transaction.</MudText>
+</div>
+
+<MudCard Elevation="4" Class="p-6" Style="max-width: 700px; background-color: white;">
+    <div class="d-flex align-center justify-space-between mb-4 pa-3" style="background-color: #f1f5f9; border-radius: 8px;">
+        <MudText Typo="Typo.subtitle1" Class="fw-bold">Assigned Deal ID:</MudText>
+        <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled">#@nextDealId</MudChip>
+    </div>
+
+    @if (string.IsNullOrEmpty(WalletState.ConnectedWallet))
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Class="mb-4">
+            Connect your wallet using the button in the top bar — the connected wallet becomes the seller for this deal.
+        </MudAlert>
+    }
+
+    <!-- Deal Type Selector -->
+    <MudSelect T="string" @bind-Value="dealType" Label="Deal Type" Variant="Variant.Outlined" Class="mb-4">
+        <MudSelectItem Value="@("Public")">Public (First buyer to connect and deposit wins)</MudSelectItem>
+        <MudSelectItem Value="@("Private")">Private (Restricted to specific buyer wallet)</MudSelectItem>
+    </MudSelect>
+
+    <MudTextField @bind-Value="newTitle" Label="Deal Title" Variant="Variant.Outlined" Class="mb-4" />
+    <MudTextField @bind-Value="newDescription" Label="Description / Terms" Variant="Variant.Outlined" Class="mb-4" />
+    <MudTextField Value="@(string.IsNullOrEmpty(WalletState.ConnectedWallet) ? "Not connected" : WalletState.ConnectedWallet)"
+                  Label="Seller Wallet Address" Variant="Variant.Outlined" Class="mb-4" ReadOnly="true"
+                  HelperText="Auto-filled from your connected wallet — the seller is always whoever creates the deal." />
+
+    @if (dealType == "Private")
+    {
+        <MudTextField @bind-Value="targetBuyerWallet" Label="Target Buyer Wallet Address (Required for Private Deals)" Variant="Variant.Outlined" Class="mb-4" HelperText="Only this wallet will be permitted to fund this deal." />
+    }
+
+    <MudNumericField T="decimal" @bind-Value="amountEth" Label="Amount (ETH)" Variant="Variant.Outlined" Class="mb-6" />
+
+    <MudButton Variant="Variant.Filled" Color="Color.Success" FullWidth="true" Size="Size.Large" OnClick="SaveMetadataAsync" Disabled="@(isSaving || string.IsNullOrEmpty(WalletState.ConnectedWallet))">
+        @if (isSaving)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            <span>Deploying & Saving...</span>
+        }
+        else
+        {
+            <span>Register Deal Metadata</span>
+        }
+    </MudButton>
+</MudCard>
+
+@code {
+    private long nextDealId = 1;
+    private string dealType = "Public";
+    private string newTitle = "";
+    private string newDescription = "";
+    private string targetBuyerWallet = "";
+    private decimal amountEth = 0.05m;
+    private bool isSaving = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        WalletState.OnWalletChanged += StateHasChanged;
+
+        try
+        {
+            var res = await Http.GetFromJsonAsync<NextIdResponse>("api/deals/next-id");
+            if (res != null)
+            {
+                nextDealId = res.NextId;
+            }
+        }
+        catch
+        {
+            nextDealId = 1;
+        }
+    }
+
+    private async Task SaveMetadataAsync()
+    {
+        isSaving = true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(newTitle))
+            {
+                Snackbar.Add("Enter a deal title.", Severity.Warning);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(newDescription))
+            {
+                Snackbar.Add("Enter a description / terms for the deal.", Severity.Warning);
+                return;
+            }
+
+            var accounts = await JS.InvokeAsync<string[]>("eval", "window.ethereum ? window.ethereum.request({ method: 'eth_requestAccounts' }) : []");
+            if (accounts == null || accounts.Length == 0)
+            {
+                Snackbar.Add("Please connect your wallet before creating a deal.", Severity.Warning);
+                return;
+            }
+
+            // The seller is always the wallet that signs the on-chain createDeal transaction —
+            // never a manually-typed address — so there is no way to list someone else's deal.
+            var sellerWallet = accounts[0];
+
+            if (dealType == "Private" && (string.IsNullOrWhiteSpace(targetBuyerWallet) || targetBuyerWallet.Length != 42))
+            {
+                Snackbar.Add("Enter a valid target buyer wallet address for a Private deal.", Severity.Warning);
+                return;
+            }
+
+            await EnsureCorrectNetwork();
+
+            // targetBuyer address(0) = open Public marketplace deal; a specific wallet = Private deal restricted on-chain
+            var targetBuyerParam = dealType == "Private" ? targetBuyerWallet : "0x0000000000000000000000000000000000000000";
+
+            var abi = "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_seller\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_collateralAmount\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"_targetBuyer\",\"type\":\"address\"}],\"name\":\"createDeal\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"payable\",\"type\":\"function\"}]";
+            var web3 = new Nethereum.Web3.Web3();
+            var contract = web3.Eth.GetContract(abi, ContractSettings.EscrowContractAddress);
+            var callDataHex = contract.GetFunction("createDeal").GetData(sellerWallet, new System.Numerics.BigInteger(0), targetBuyerParam);
+
+            var txHash = await ExecuteMetamaskTx(ContractSettings.EscrowContractAddress, "0x0", callDataHex, sellerWallet);
+            if (string.IsNullOrEmpty(txHash))
+            {
+                Snackbar.Add("On-chain deal creation failed.", Severity.Error);
+                return;
+            }
+
+            var latestOnChainId = await GetChainDealIdAsync();
+            if (latestOnChainId == null)
+            {
+                Snackbar.Add("Created deal, but could not read on-chain deal ID.", Severity.Error);
+                return;
+            }
+
+            var request = new
+            {
+                dealId = latestOnChainId.Value,
+                title = newTitle,
+                description = newDescription,
+                buyerWallet = string.Empty,
+                sellerWallet = sellerWallet,
+                amountEth = amountEth,
+                dealType = dealType,
+                targetBuyerWallet = targetBuyerWallet
+            };
+
+            var response = await Http.PostAsJsonAsync("api/deals/metadata", request);
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Deal created on-chain and metadata saved successfully!", Severity.Success);
+                Nav.NavigateTo($"deals/{latestOnChainId.Value}");
+            }
+            else
+            {
+                Snackbar.Add("Deal was created on-chain but metadata save failed.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task<long?> GetChainDealIdAsync()
+    {
+        try
+        {
+            var web3 = new Nethereum.Web3.Web3(ContractSettings.RpcUrl);
+            var abi = "[{\"inputs\":[],\"name\":\"dealCounter\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]";
+            var contract = web3.Eth.GetContract(abi, ContractSettings.EscrowContractAddress);
+            var dealCounterFunction = contract.GetFunction("dealCounter");
+            var result = await dealCounterFunction.CallAsync<System.Numerics.BigInteger>();
+            return (long)result;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task EnsureCorrectNetwork()
+    {
+        await JS.InvokeVoidAsync("eval", $@"
+            window.ethereum.request({{
+                method: 'wallet_switchEthereumChain',
+                params: [{{ chainId: '{ContractSettings.ChainIdHex}' }}]
+            }}).catch(async (switchError) => {{
+                if (switchError.code === 4902) {{
+                    await window.ethereum.request({{
+                        method: 'wallet_addEthereumChain',
+                        params: [{{
+                            chainId: '{ContractSettings.ChainIdHex}',
+                            chainName: '{ContractSettings.ChainName}',
+                            nativeCurrency: {{ name: 'ETH', symbol: 'ETH', decimals: 18 }},
+                            rpcUrls: ['{ContractSettings.RpcUrl}'],
+                            blockExplorerUrls: ['{ContractSettings.BlockExplorerUrl}']
+                        }}]
+                    }});
+                }}
+            }});
+        ");
+    }
+
+    private async Task<string> ExecuteMetamaskTx(string to, string valueHex, string dataHex, string fromAddress)
+    {
+        string script = $@"
+            (async () => {{
+                const provider = window.ethereum;
+                const txHash = await provider.request({{
+                    method: 'eth_sendTransaction',
+                    params: [{{
+                        from: '{fromAddress}',
+                        to: '{to}',
+                        value: '{valueHex}',
+                        data: '{dataHex}',
+                        gas: '0x249F0'
+                    }}]
+                }});
+
+                let receipt = null;
+                while (receipt === null) {{
+                    await new Promise(r => setTimeout(r, 1000));
+                    receipt = await provider.request({{
+                        method: 'eth_getTransactionReceipt',
+                        params: [txHash]
+                    }});
+                }}
+
+                if (!receipt || receipt.status === '0x0' || receipt.status === 0) {{
+                    throw new Error('Transaction reverted on-chain.');
+                }}
+                return txHash;
+            }})()
+        ";
+        return await JS.InvokeAsync<string>("eval", script);
+    }
+
+    public void Dispose()
+    {
+        WalletState.OnWalletChanged -= StateHasChanged;
+    }
+
+    private class NextIdResponse
+    {
+        public long NextId { get; set; }
+    }
+}

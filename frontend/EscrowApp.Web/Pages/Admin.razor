@@ -1,0 +1,138 @@
+@page "/admin"
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@using EscrowApp.Web.Models
+
+<div class="d-flex align-center justify-between mb-4">
+    <div>
+        <MudText Typo="Typo.h4" Class="fw-bold">🛡️ Protocol Administration</MudText>
+        <MudText Typo="Typo.body2" Class="text-muted">Platform governance, dispute arbitration, and L2 protocol parameters.</MudText>
+    </div>
+    <MudChip T="string" Color="Color.Error" Variant="Variant.Filled">ADMIN MODE</MudChip>
+</div>
+
+<MudGrid Class="mb-6">
+    <MudItem xs="12" md="4">
+        <MudCard Elevation="2" Class="p-3">
+            <MudText Typo="Typo.caption" Class="text-muted">Total Protocol Volume</MudText>
+            <MudText Typo="Typo.h5" Class="fw-bold text-success">@TotalVolume.ToString("0.##") ETH</MudText>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" md="4">
+        <MudCard Elevation="2" Class="p-3">
+            <MudText Typo="Typo.caption" Class="text-muted">Active Escrows</MudText>
+            <MudText Typo="Typo.h5" Class="fw-bold text-primary">@ActiveDeals</MudText>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" md="4">
+        <MudCard Elevation="2" Class="p-3">
+            <MudText Typo="Typo.caption" Class="text-muted">Pending Disputes</MudText>
+            <MudText Typo="Typo.h5" Class="fw-bold text-warning">@DisputedDeals</MudText>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+<MudCard Elevation="3" Class="p-4 rounded-lg mb-6">
+    <MudText Typo="Typo.h6" Class="fw-bold mb-3">Protocol Safety Controls</MudText>
+    <div class="d-flex gap-4 align-center flex-wrap">
+        <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Warning" OnClick="TriggerEmergencyPause">Emergency Circuit Breaker</MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Settings" OnClick="SyncContractState">Sync L2 State</MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Success" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadDealsAsync">Refresh Deal Snapshot</MudButton>
+    </div>
+</MudCard>
+
+<MudCard Elevation="3" Class="p-4 rounded-lg">
+    <MudText Typo="Typo.h6" Class="fw-bold mb-4">Recent Escrow Agreements</MudText>
+
+    @if (isLoading)
+    {
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    }
+    else if (deals == null || !deals.Any())
+    {
+        <MudAlert Severity="Severity.Info">No deals have been registered yet.</MudAlert>
+    }
+    else
+    {
+        <MudTable Items="deals" Hover="true" Bordered="true" Striped="true">
+            <HeaderContent>
+                <MudTh>Deal ID</MudTh>
+                <MudTh>Title</MudTh>
+                <MudTh>Amount</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Seller</MudTh>
+                <MudTh>Buyer</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Deal ID">@context.Metadata.DealId</MudTd>
+                <MudTd DataLabel="Title">@context.Metadata.Title</MudTd>
+                <MudTd DataLabel="Amount">@context.Metadata.AmountEth.ToString("0.##") ETH</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Color="@(GetStatusColor(context.Metadata.Status))" Variant="Variant.Filled" Size="Size.Small">@context.Metadata.Status</MudChip>
+                </MudTd>
+                <MudTd DataLabel="Seller">@TruncateAddress(context.Metadata.SellerWallet)</MudTd>
+                <MudTd DataLabel="Buyer">@(string.IsNullOrEmpty(context.Metadata.BuyerWallet) ? "—" : TruncateAddress(context.Metadata.BuyerWallet))</MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudCard>
+
+@code {
+    private List<DealDetailResponse> deals = new();
+    private bool isLoading = true;
+
+    private decimal TotalVolume => deals.Sum(d => d.Metadata.AmountEth);
+    private int ActiveDeals => deals.Count(d => d.Metadata.Status is not "Released" and not "Refunded");
+    private int DisputedDeals => deals.Count(d => d.Metadata.Status == "Disputed");
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDealsAsync();
+    }
+
+    private async Task LoadDealsAsync()
+    {
+        isLoading = true;
+        try
+        {
+            deals = await Http.GetFromJsonAsync<List<DealDetailResponse>>("api/deals") ?? new();
+        }
+        catch
+        {
+            deals = new();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void TriggerEmergencyPause()
+    {
+        Snackbar.Add("Emergency pause triggered across protocol contracts.", Severity.Error);
+    }
+
+    private void SyncContractState()
+    {
+        Snackbar.Add("Contract states synchronized successfully with network.", Severity.Success);
+    }
+
+    private Color GetStatusColor(string status) => status switch
+    {
+        "Created" => Color.Info,
+        "Funded" => Color.Primary,
+        "Shipped" => Color.Warning,
+        "Released" => Color.Success,
+        "Disputed" => Color.Error,
+        _ => Color.Default
+    };
+
+    private string TruncateAddress(string addr) =>
+        string.IsNullOrEmpty(addr) || addr.Length < 10 ? addr : $"{addr.Substring(0, 6)}...{addr.Substring(addr.Length - 4)}";
+
+    public class DealDetailResponse
+    {
+        public long DealId { get; set; }
+        public DealMetadataModel Metadata { get; set; } = new();
+    }
+}

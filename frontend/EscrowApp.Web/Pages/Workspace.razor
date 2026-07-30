@@ -1,0 +1,11 @@
+@page "/workspace"
+@inject NavigationManager Navigation
+
+@code {
+    // This legacy page's Release/Dispute actions were mocked (snackbar only, no
+    // on-chain or API calls). Superseded by /deals/my + the per-deal workspace at /deals/{id}.
+    protected override void OnInitialized()
+    {
+        Navigation.NavigateTo("/deals/my", replace: true);
+    }
+}

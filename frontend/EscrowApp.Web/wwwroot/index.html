@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escrow Pilot | B2B Trust Tool</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background-color: #f4f7f9; color: #333; max-width: 800px; margin: 40px auto; padding: 20px; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid #e1e8ed; }
+        h1 { color: #1a202c; font-size: 24px; margin-bottom: 30px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; }
+        input { width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing: border-box; }
+        button { background: #3182ce; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-right: 5px; margin-bottom: 5px; }
+        button:hover { background: #2b6cb0; }
+        pre { background: #1a202c; color: #a0aec0; padding: 15px; border-radius: 6px; overflow-x: auto; font-size: 13px; min-height: 50px; }
+    </style>
+</head>
+<body>
+    <h1>Two-Party Escrow Pilot</h1>
+
+    <div class="card">
+        <h3>1. Create New Escrow (Buyer)</h3>
+        <label>Seller Wallet Address</label>
+        <input type="text" id="sellerAddr" value="0x70997970C51812dc3A010C7d01b50e0d17dc79C8">
+        <label>Amount to Lock (ETH)</label>
+        <input type="number" id="ethAmount" value="0.1" step="0.01">
+        <button onclick="createDeal()">Secure Payment</button>
+    </div>
+
+    <div class="card">
+        <h3>2. Manage Deal</h3>
+        <label>Current Deal ID</label>
+        <input type="number" id="dealId" placeholder="Enter Deal ID">
+        <button onclick="checkStatus()">Check Status</button>
+        <button onclick="markShipped()" style="background:#38a169">Mark as Shipped</button>
+        <button onclick="confirmReceipt()" style="background:#e53e3e">Confirm & Release Funds</button>
+    </div>
+
+    <div class="card">
+        <h3>Logs</h3>
+        <pre id="output">Ready...</pre>
+    </div>
+
+    <script>
+        const output = document.getElementById('output');
+        const dealIdInput = document.getElementById('dealId');
+        
+        const log = (data) => output.innerText = JSON.stringify(data, null, 2);
+
+        async function createDeal() {
+            const seller = document.getElementById('sellerAddr').value;
+            const amount = document.getElementById('ethAmount').value;
+            log("Mining transaction...");
+            try {
+                const res = await fetch(`/deal/create?seller=${seller}&amount=${amount}`, { method: 'POST' });
+                const data = await res.json();
+                log(data);
+                if(data.dealId) dealIdInput.value = data.dealId; // AUTO-UPDATE ID
+            } catch (e) { log("Error: " + e); }
+        }
+
+        async function checkStatus() {
+            const id = dealIdInput.value;
+            const res = await fetch(`/deal/${id}`);
+            log(await res.json());
+        }
+
+        async function markShipped() {
+            const id = dealIdInput.value;
+            log("Updating status to Shipped...");
+            const res = await fetch(`/deal/${id}/ship`, { method: 'POST' });
+            log(await res.json());
+        }
+
+        async function confirmReceipt() {
+            const id = dealIdInput.value;
+            log("Releasing funds to seller...");
+            const res = await fetch(`/deal/${id}/confirm`, { method: 'POST' });
+            log(await res.json());
+        }
+    </script>
+</body>
+</html>

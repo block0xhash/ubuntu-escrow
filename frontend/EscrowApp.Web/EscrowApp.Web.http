@@ -1,0 +1,6 @@
+@EscrowApp.Web_HostAddress = http://localhost:5078
+
+GET {{EscrowApp.Web_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

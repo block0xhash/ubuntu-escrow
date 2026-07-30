@@ -1,0 +1,563 @@
+@page "/deals/{DealId:long}"
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@inject WalletStateService WalletState
+@implements IDisposable
+@using System.Numerics
+@using MudBlazor
+@using EscrowApp.Web.Models
+@using EscrowApp.Web.Services
+
+<div class="mx-auto my-4" style="max-width: 700px;">
+    <!-- Top Header -->
+    <div class="d-flex align-center justify-space-between mb-4 px-1">
+        <div>
+            <MudText Typo="Typo.h5" Class="fw-bold d-flex align-center gap-2">
+                <MudIcon Icon="@Icons.Material.Filled.Security" Color="Color.Primary" Size="Size.Medium" />
+                Deal Workspace #@DealId
+            </MudText>
+            <MudText Typo="Typo.caption" Class="text-secondary">
+                Hybrid GIWA Sepolia L2 Smart Contract & SQLite Audit Log
+            </MudText>
+        </div>
+        @if (dealData != null)
+        {
+            <MudChip T="string"
+                     Color="@GetStatusColor(dealData.Metadata.Status)"
+                     Variant="Variant.Filled"
+                     Size="Size.Small"
+                     Class="fw-bold">
+                @(dealData.Metadata.Status ?? "Pending")
+            </MudChip>
+        }
+    </div>
+
+    @if (dealData == null)
+    {
+        <MudPaper Outlined="true" Class="pa-12 d-flex justify-center align-center" Style="border-radius: 12px;">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+        </MudPaper>
+    }
+    else
+    {
+        <MudCard Elevation="3" Style="border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0;">
+            <!-- Dark Gradient Banner -->
+            <div class="pa-5" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white;">
+                <div class="d-flex justify-space-between align-center">
+                    <div>
+                        <MudText Typo="Typo.h6" Class="fw-bold" Style="color: #ffffff;">@dealData.Metadata.Title</MudText>
+                        <MudText Typo="Typo.body2" Style="color: #94a3b8;">@dealData.Metadata.Description</MudText>
+                    </div>
+                    <MudChip T="string" Color="Color.Success" Variant="Variant.Filled" Class="fw-bold px-3 py-1" Style="font-size: 0.95rem;">
+                        @dealData.Metadata.AmountEth ETH
+                    </MudChip>
+                </div>
+            </div>
+
+            <!-- Lifecycle Progress -->
+            <div class="pa-4" style="background: rgba(0,0,0,0.02); border-bottom: 1px solid #f1f5f9;">
+                <MudText Typo="Typo.caption" Class="fw-bold mb-2 d-block">Lifecycle Progress:</MudText>
+                <div class="d-flex justify-between align-center px-1" style="font-size: 12px;">
+                    <span class="@(CurrentStep >= 0 ? "text-success fw-bold" : "text-muted")">1. Created</span> ➔
+                    <span class="@(CurrentStep >= 1 ? "text-success fw-bold" : "text-muted")">2. Funded</span> ➔
+                    <span class="@(CurrentStep >= 2 ? "text-success fw-bold" : "text-muted")">3. Shipped</span> ➔
+                    <span class="@(CurrentStep >= 3 ? "text-success fw-bold" : "text-muted")">4. Released</span>
+                </div>
+            </div>
+
+            <!-- Details Section -->
+            <MudCardContent Class="pa-5">
+                <MudGrid Spacing="2">
+                    <MudItem xs="6">
+                        <div class="pa-3" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9;">
+                            <MudText Typo="Typo.caption" Class="text-secondary d-block fw-bold">DEAL TYPE</MudText>
+                            <MudText Typo="Typo.body2" Class="fw-bold d-flex align-center gap-1 mt-1">
+                                <MudIcon Icon="@Icons.Material.Filled.Public" Size="Size.Small" Color="Color.Info" />
+                                @dealData.Metadata.DealType
+                            </MudText>
+                        </div>
+                    </MudItem>
+
+                    <MudItem xs="6">
+                        <div class="pa-3" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9;">
+                            <MudText Typo="Typo.caption" Class="text-secondary d-block fw-bold">STATUS</MudText>
+                            <MudText Typo="Typo.body2" Class="@($"fw-bold d-flex align-center gap-1 mt-1 {(dealData.Metadata.Status == "Funded" ? "text-success" : "text-warning")}")">
+                                <MudIcon Icon="@(dealData.Metadata.Status == "Funded" ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.HourglassEmpty)" Size="Size.Small" />
+                                @dealData.Metadata.Status
+                            </MudText>
+                        </div>
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <div class="pa-3" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9;">
+                            <MudText Typo="Typo.caption" Class="text-secondary d-block fw-bold mb-1">SELLER WALLET</MudText>
+                            <code style="background: #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; word-break: break-all; color: #0f172a; font-family: monospace;">
+                                @dealData.Metadata.SellerWallet @(IsConnectedSeller ? "(You)" : "")
+                            </code>
+                        </div>
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <div class="pa-3" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9;">
+                            <MudText Typo="Typo.caption" Class="text-secondary d-block fw-bold mb-1">BUYER WALLET</MudText>
+                            <code style="background: #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; word-break: break-all; color: #0f172a; font-family: monospace;">
+                                @(string.IsNullOrEmpty(dealData.Metadata.BuyerWallet) ? "Awaiting Deposit" : $"{dealData.Metadata.BuyerWallet} {(IsConnectedBuyer ? "(You)" : "")}")
+                            </code>
+                        </div>
+                    </MudItem>
+
+                    @if (dealData.Metadata.DealType == "Private" && !string.IsNullOrEmpty(dealData.Metadata.TargetBuyerWallet))
+                    {
+                        <MudItem xs="12">
+                            <div class="pa-3" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9;">
+                                <MudText Typo="Typo.caption" Class="text-secondary d-block fw-bold mb-1">RESTRICTED BUYER WALLET</MudText>
+                                <code style="background: #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; word-break: break-all; color: #0f172a; font-family: monospace;">
+                                    @dealData.Metadata.TargetBuyerWallet
+                                </code>
+                            </div>
+                        </MudItem>
+                    }
+                </MudGrid>
+
+                <!-- Transaction Audit Trail -->
+                <div class="mt-4">
+                    <MudText Typo="Typo.caption" Class="fw-bold text-primary mb-1 d-block">Transaction History & Audit Trail:</MudText>
+
+                    @if (!string.IsNullOrEmpty(dealData.DepositTxHash))
+                    {
+                        <div class="mb-2 p-2 rounded" style="background: rgba(76, 175, 80, 0.08); font-size: 11px;">
+                            <b>[Deposit / Funded]</b> at @dealData.DepositTimestamp<br />
+                            <a href="@($"{ContractSettings.BlockExplorerUrl}/tx/{dealData.DepositTxHash}")" target="_blank"
+                               style="font-family: monospace; color: #2e7d32; text-decoration: underline; word-break: break-all; display: block;">
+                                @dealData.DepositTxHash ↗
+                            </a>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(dealData.ShipTxHash))
+                    {
+                        <div class="mb-2 p-2 rounded" style="background: rgba(33, 150, 243, 0.08); font-size: 11px;">
+                            <b>[Marked Shipped]</b> at @dealData.ShipTimestamp<br />
+                            <a href="@($"{ContractSettings.BlockExplorerUrl}/tx/{dealData.ShipTxHash}")" target="_blank"
+                               style="font-family: monospace; color: #1565c0; text-decoration: underline; word-break: break-all; display: block;">
+                                @dealData.ShipTxHash ↗
+                            </a>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(dealData.ReleaseTxHash))
+                    {
+                        <div class="mb-2 p-2 rounded" style="background: rgba(76, 175, 80, 0.08); font-size: 11px;">
+                            <b>[Confirmed &amp; Released]</b> at @dealData.ReleaseTimestamp<br />
+                            <a href="@($"{ContractSettings.BlockExplorerUrl}/tx/{dealData.ReleaseTxHash}")" target="_blank"
+                               style="font-family: monospace; color: #2e7d32; text-decoration: underline; word-break: break-all; display: block;">
+                                @dealData.ReleaseTxHash ↗
+                            </a>
+                        </div>
+                    }
+                    @if (string.IsNullOrEmpty(dealData.DepositTxHash) && string.IsNullOrEmpty(dealData.ShipTxHash) && string.IsNullOrEmpty(dealData.ReleaseTxHash))
+                    {
+                        <MudText Typo="Typo.caption" Class="text-muted italic">No transactions recorded yet.</MudText>
+                    }
+                </div>
+            </MudCardContent>
+
+            <!-- Action Button / Status Bar -->
+            <MudCardActions Class="pa-5 pt-0 d-flex flex-column gap-2">
+                @if (!IsConnectedWalletPresent)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Default" FullWidth="true" Disabled="true">
+                        Connect Wallet to Interact
+                    </MudButton>
+                }
+                else if (CurrentStep >= 1)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Default" FullWidth="true" Disabled="true" StartIcon="@Icons.Material.Filled.CheckCircle">
+                        1. Deposit Completed
+                    </MudButton>
+                }
+                else if (IsConnectedSeller)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Default" FullWidth="true" Disabled="true">
+                        Seller Cannot Deposit Own Deal
+                    </MudButton>
+                }
+                else if (dealData.Metadata.DealType == "Private" && !IsAllowedBuyer)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Default" FullWidth="true" Disabled="true">
+                        Restricted Private Deal - Only the target buyer can deposit
+                    </MudButton>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Success"
+                               Size="Size.Large"
+                               FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.AccountBalanceWallet"
+                               OnClick="DepositFundsAsync"
+                               Disabled="isBusy"
+                               Style="border-radius: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                        @if (isBusy)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            <span>Confirming in MetaMask...</span>
+                        }
+                        else
+                        {
+                            <span>Deposit @dealData.Metadata.AmountEth ETH On-Chain</span>
+                        }
+                    </MudButton>
+                }
+
+                @if (CurrentStep >= 2)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Default" FullWidth="true" Disabled="true" StartIcon="@Icons.Material.Filled.CheckCircle">
+                        2. Marked as Shipped
+                    </MudButton>
+                }
+                else if (CurrentStep == 1)
+                {
+                    @if (IsConnectedSeller)
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" StartIcon="@Icons.Material.Filled.LocalShipping" OnClick="MarkShippedAsync" Disabled="isBusy">
+                            Mark Item as Shipped (Your Role: Seller)
+                        </MudButton>
+                    }
+                    else
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Default" FullWidth="true" Disabled="true">
+                            Mark as Shipped (Restricted to Seller)
+                        </MudButton>
+                    }
+                }
+
+                @if (CurrentStep >= 3)
+                {
+                    <MudAlert Severity="Severity.Success" Variant="Variant.Filled" Class="w-100" Style="border-radius: 8px;">
+                        🎉 Receipt confirmed — funds released to the seller on GIWA Sepolia L2!
+                    </MudAlert>
+                }
+                else if (CurrentStep == 2)
+                {
+                    @if (IsConnectedBuyer)
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" FullWidth="true" StartIcon="@Icons.Material.Filled.CheckCircle" OnClick="ConfirmReceiptAsync" Disabled="isBusy">
+                            Confirm Receipt &amp; Release Funds (Your Role: Buyer)
+                        </MudButton>
+                    }
+                    else
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Default" FullWidth="true" Disabled="true">
+                            Confirm Receipt (Restricted to Buyer)
+                        </MudButton>
+                    }
+                }
+            </MudCardActions>
+        </MudCard>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public long DealId { get; set; }
+
+    private DealDetailResponse? dealData;
+    private bool isBusy = false;
+
+    private bool IsConnectedWalletPresent => !string.IsNullOrEmpty(WalletState.ConnectedWallet);
+
+    private bool IsConnectedSeller => dealData != null && IsConnectedWalletPresent &&
+        string.Equals(WalletState.ConnectedWallet, dealData.Metadata.SellerWallet, StringComparison.OrdinalIgnoreCase);
+
+    private bool IsConnectedBuyer => dealData != null && IsConnectedWalletPresent &&
+        string.Equals(WalletState.ConnectedWallet, dealData.Metadata.BuyerWallet, StringComparison.OrdinalIgnoreCase);
+
+    private bool IsAllowedBuyer => dealData == null || string.IsNullOrEmpty(dealData.Metadata.TargetBuyerWallet) ||
+        string.Equals(WalletState.ConnectedWallet, dealData.Metadata.TargetBuyerWallet, StringComparison.OrdinalIgnoreCase);
+
+    private int CurrentStep => dealData?.Metadata.Status switch
+    {
+        "Funded" => 1,
+        "Shipped" => 2,
+        "Released" => 3,
+        _ => 0
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        WalletState.OnWalletChanged += StateHasChanged;
+        await LoadDealAsync();
+    }
+
+    private async Task LoadDealAsync()
+    {
+        try
+        {
+            dealData = await Http.GetFromJsonAsync<DealDetailResponse>($"api/deals/{DealId}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+    }
+
+    private async Task<string?> GetConnectedAccountAsync()
+    {
+        var accounts = await JS.InvokeAsync<string[]>("eval", "window.ethereum ? window.ethereum.request({ method: 'eth_requestAccounts' }) : []");
+        return accounts != null && accounts.Length > 0 ? accounts[0] : null;
+    }
+
+    private async Task DepositFundsAsync()
+    {
+        isBusy = true;
+        try
+        {
+            var connectedWallet = await GetConnectedAccountAsync();
+            if (string.IsNullOrEmpty(connectedWallet))
+            {
+                Snackbar.Add("Please connect your MetaMask wallet first.", Severity.Error);
+                return;
+            }
+
+            if (string.Equals(connectedWallet, dealData!.Metadata.SellerWallet, StringComparison.OrdinalIgnoreCase))
+            {
+                Snackbar.Add("The seller cannot deposit into their own deal.", Severity.Error);
+                return;
+            }
+
+            if (dealData.Metadata.DealType == "Private" &&
+                !string.IsNullOrEmpty(dealData.Metadata.TargetBuyerWallet) &&
+                !dealData.Metadata.TargetBuyerWallet.Equals(connectedWallet, StringComparison.OrdinalIgnoreCase))
+            {
+                Snackbar.Add("Access Denied: This is a private deal restricted to a specific buyer wallet.", Severity.Error);
+                return;
+            }
+
+            await EnsureCorrectNetwork();
+
+            decimal amountEth = dealData.Metadata.AmountEth;
+            BigInteger weiValue = (BigInteger)(amountEth * 1000000000000000000m);
+            string hexWei = "0x" + weiValue.ToString("x");
+
+            var abi = "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"dealId\",\"type\":\"uint256\"}],\"name\":\"deposit\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"}]";
+            var web3 = new Nethereum.Web3.Web3();
+            var contract = web3.Eth.GetContract(abi, ContractSettings.EscrowContractAddress);
+            string callDataHex = contract.GetFunction("deposit").GetData(new BigInteger(DealId));
+
+            string txHash = await ExecuteMetamaskTx(ContractSettings.EscrowContractAddress, hexWei, callDataHex, connectedWallet);
+            if (!string.IsNullOrEmpty(txHash))
+            {
+                var timestampStr = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC");
+                var response = await Http.PostAsJsonAsync($"api/deals/{DealId}/fund", new
+                {
+                    BuyerWallet = connectedWallet,
+                    TxHash = txHash,
+                    Timestamp = timestampStr
+                });
+
+                if (response.IsSuccessStatusCode)
+                {
+                    dealData.Metadata.Status = "Funded";
+                    dealData.Metadata.BuyerWallet = connectedWallet;
+                    dealData.DepositTxHash = txHash;
+                    dealData.DepositTimestamp = timestampStr;
+                    Snackbar.Add("Funds successfully locked in the escrow contract!", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Deposit succeeded on-chain, but server-side status update failed.", Severity.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            isBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task MarkShippedAsync()
+    {
+        isBusy = true;
+        try
+        {
+            var connectedWallet = await GetConnectedAccountAsync();
+            if (string.IsNullOrEmpty(connectedWallet) || !string.Equals(connectedWallet, dealData!.Metadata.SellerWallet, StringComparison.OrdinalIgnoreCase))
+            {
+                Snackbar.Add("Access Denied: Only the designated Seller can mark this deal as shipped.", Severity.Error);
+                return;
+            }
+
+            await EnsureCorrectNetwork();
+
+            var abi = "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"dealId\",\"type\":\"uint256\"}],\"name\":\"markShipped\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]";
+            var web3 = new Nethereum.Web3.Web3();
+            var contract = web3.Eth.GetContract(abi, ContractSettings.EscrowContractAddress);
+            string callDataHex = contract.GetFunction("markShipped").GetData(new BigInteger(DealId));
+
+            string txHash = await ExecuteMetamaskTx(ContractSettings.EscrowContractAddress, "0x0", callDataHex, connectedWallet);
+            if (!string.IsNullOrEmpty(txHash))
+            {
+                var timestampStr = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC");
+                var response = await Http.PostAsJsonAsync($"api/deals/{DealId}/ship", new { TxHash = txHash, Timestamp = timestampStr });
+
+                if (response.IsSuccessStatusCode)
+                {
+                    dealData.Metadata.Status = "Shipped";
+                    dealData.ShipTxHash = txHash;
+                    dealData.ShipTimestamp = timestampStr;
+                    Snackbar.Add("Deal status updated to Shipped successfully!", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Shipment updated on-chain, but server status save failed.", Severity.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Action failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ConfirmReceiptAsync()
+    {
+        isBusy = true;
+        try
+        {
+            var connectedWallet = await GetConnectedAccountAsync();
+            if (string.IsNullOrEmpty(connectedWallet) || !string.Equals(connectedWallet, dealData!.Metadata.BuyerWallet, StringComparison.OrdinalIgnoreCase))
+            {
+                Snackbar.Add("Access Denied: Only the designated Buyer can confirm receipt.", Severity.Error);
+                return;
+            }
+
+            await EnsureCorrectNetwork();
+
+            var abi = "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"dealId\",\"type\":\"uint256\"}],\"name\":\"confirmReceipt\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]";
+            var web3 = new Nethereum.Web3.Web3();
+            var contract = web3.Eth.GetContract(abi, ContractSettings.EscrowContractAddress);
+            string callDataHex = contract.GetFunction("confirmReceipt").GetData(new BigInteger(DealId));
+
+            string txHash = await ExecuteMetamaskTx(ContractSettings.EscrowContractAddress, "0x0", callDataHex, connectedWallet);
+            if (!string.IsNullOrEmpty(txHash))
+            {
+                var timestampStr = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC");
+                var response = await Http.PostAsJsonAsync($"api/deals/{DealId}/release", new { TxHash = txHash, Timestamp = timestampStr });
+
+                if (response.IsSuccessStatusCode)
+                {
+                    dealData.Metadata.Status = "Released";
+                    dealData.ReleaseTxHash = txHash;
+                    dealData.ReleaseTimestamp = timestampStr;
+                    Snackbar.Add("Receipt confirmed and funds released to seller!", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Funds were released on-chain, but server status save failed.", Severity.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Action failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task EnsureCorrectNetwork()
+    {
+        await JS.InvokeVoidAsync("eval", $@"
+            window.ethereum.request({{
+                method: 'wallet_switchEthereumChain',
+                params: [{{ chainId: '{ContractSettings.ChainIdHex}' }}]
+            }}).catch(async (switchError) => {{
+                if (switchError.code === 4902) {{
+                    await window.ethereum.request({{
+                        method: 'wallet_addEthereumChain',
+                        params: [{{
+                            chainId: '{ContractSettings.ChainIdHex}',
+                            chainName: '{ContractSettings.ChainName}',
+                            nativeCurrency: {{ name: 'ETH', symbol: 'ETH', decimals: 18 }},
+                            rpcUrls: ['{ContractSettings.RpcUrl}'],
+                            blockExplorerUrls: ['{ContractSettings.BlockExplorerUrl}']
+                        }}]
+                    }});
+                }}
+            }});
+        ");
+    }
+
+    private async Task<string> ExecuteMetamaskTx(string to, string valueHex, string dataHex, string fromAddress)
+    {
+        string script = $@"
+            (async () => {{
+                const provider = window.ethereum;
+                const txHash = await provider.request({{
+                    method: 'eth_sendTransaction',
+                    params: [{{
+                        from: '{fromAddress}',
+                        to: '{to}',
+                        value: '{valueHex}',
+                        data: '{dataHex}',
+                        gas: '0x249F0'
+                    }}]
+                }});
+
+                let receipt = null;
+                while (receipt === null) {{
+                    await new Promise(r => setTimeout(r, 1000));
+                    receipt = await provider.request({{
+                        method: 'eth_getTransactionReceipt',
+                        params: [txHash]
+                    }});
+                }}
+
+                if (!receipt || receipt.status === '0x0' || receipt.status === 0) {{
+                    throw new Error('Transaction reverted on-chain.');
+                }}
+                return txHash;
+            }})()
+        ";
+        return await JS.InvokeAsync<string>("eval", script);
+    }
+
+    private Color GetStatusColor(string status) => status switch
+    {
+        "Funded" => Color.Primary,
+        "Shipped" => Color.Warning,
+        "Released" => Color.Success,
+        _ => Color.Default
+    };
+
+    public void Dispose()
+    {
+        WalletState.OnWalletChanged -= StateHasChanged;
+    }
+
+    public class DealDetailResponse
+    {
+        public long DealId { get; set; }
+        public DealMetadataModel Metadata { get; set; } = new();
+        public string DepositTxHash { get; set; } = "";
+        public string DepositTimestamp { get; set; } = "";
+        public string ShipTxHash { get; set; } = "";
+        public string ShipTimestamp { get; set; } = "";
+        public string ReleaseTxHash { get; set; } = "";
+        public string ReleaseTimestamp { get; set; } = "";
+    }
+}

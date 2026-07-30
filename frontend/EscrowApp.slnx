@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="EscrowApp.Core/EscrowApp.Core.csproj" />
+  <Project Path="EscrowApp.Infra/EscrowApp.Infra.csproj" />
+  <Project Path="EscrowApp.Web/EscrowApp.Web.csproj" />
+</Solution>
