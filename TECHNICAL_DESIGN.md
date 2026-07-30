@@ -85,3 +85,25 @@ Created ──deposit()──▶ Funded ──markShipped()──▶ Shipped ─
 | Per-deal transaction audit trail linking to the block explorer | Collateral/staking mechanism (field exists in the contract, not yet exposed in the UI) |
 
 This is deliberately scoped: the core trust primitive (locked funds, on-chain-enforced release conditions) is complete and tested; the parts left for the roadmap are operational/UX surface area, not the trust model itself.
+
+## Roadmap
+
+**Close the remaining trust/security gaps**
+- Server-side verification of on-chain state (an event-indexer or periodic reconciliation) instead of trusting client-submitted transaction hashes — the biggest architectural gap in the current MVP
+- Dispute resolution UI, wired to the existing `raiseDispute` / `resolveDispute` contract functions
+- Independent security audit before any mainnet deployment handles real funds
+
+**Reduce adoption friction**
+- ERC-20 stablecoin support (e.g. USDC) — pricing a real-world trade in volatile ETH is a genuine barrier
+- Gasless / sponsored transactions for new users who don't yet hold gas tokens, especially relevant for users new to crypto entirely
+- Fiat on/off-ramp integration
+
+**Extend the trust model**
+- On-chain reputation / deal-history scoring for repeat buyers and sellers, so trust compounds beyond a single escrow
+- Collateral/staking for private deals (the `collateralPosted` field already exists in the contract; not yet enforced or exposed)
+- Multiple-designated-buyer / auction-style private deals
+
+**Scale**
+- Mainnet deployment once GIWA's mainnet is live
+- Push notifications (deal funded / shipped / released) instead of requiring a manual page refresh
+- Localization for target markets
