@@ -93,10 +93,11 @@ This is deliberately scoped: the core trust primitive (locked funds, on-chain-en
 - Dispute resolution UI, wired to the existing `raiseDispute` / `resolveDispute` contract functions
 - Independent security audit before any mainnet deployment handles real funds
 
-**Reduce adoption friction**
-- ERC-20 stablecoin support (e.g. USDC) — pricing a real-world trade in volatile ETH is a genuine barrier
-- Gasless / sponsored transactions for new users who don't yet hold gas tokens, especially relevant for users new to crypto entirely
-- Fiat on/off-ramp integration
+**Reduce adoption friction — shield non-technical users from crypto entirely**
+- Account abstraction paymasters (ERC-4337) so the platform (or seller) can sponsor gas — a first-time user shouldn't need to already own gas tokens to complete their first deal
+- Social login (Google/Apple/phone-number) backed by an embedded/smart-contract wallet, so a non-technical user never sees a seed phrase, a private key, or "connect MetaMask" — they just sign in and trade
+- Full fiat on/off-ramp — deposit and withdraw in local currency, with the platform handling the stablecoin conversion behind the scenes
+- ERC-20 stablecoin support (e.g. USDC) as the underlying settlement asset — pricing a real-world trade in volatile ETH is a genuine barrier even for crypto-native users
 
 **Extend the trust model**
 - On-chain reputation / deal-history scoring for repeat buyers and sellers, so trust compounds beyond a single escrow
