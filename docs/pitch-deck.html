@@ -1,0 +1,565 @@
+<title>Ubuntu Pay — Pitch Deck</title>
+<style>
+  :root {
+    --bg: #EDE7D8;
+    --bg-elevated: #F5F1E6;
+    --fg: #221C15;
+    --muted: #6B6152;
+    --rule: #C9BFA8;
+    --accent: #8C2F26;
+    --accent-fg: #F5F1E6;
+    --gold: #8A6A24;
+    --shadow: 0 1px 0 rgba(34,28,21,0.06);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17130F;
+      --bg-elevated: #211B14;
+      --fg: #EDE4D3;
+      --muted: #A79B85;
+      --rule: #3A3226;
+      --accent: #D97263;
+      --accent-fg: #17130F;
+      --gold: #D4AF5A;
+      --shadow: 0 1px 0 rgba(0,0,0,0.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17130F;
+    --bg-elevated: #211B14;
+    --fg: #EDE4D3;
+    --muted: #A79B85;
+    --rule: #3A3226;
+    --accent: #D97263;
+    --accent-fg: #17130F;
+    --gold: #D4AF5A;
+    --shadow: 0 1px 0 rgba(0,0,0,0.4);
+  }
+  :root[data-theme="light"] {
+    --bg: #EDE7D8;
+    --bg-elevated: #F5F1E6;
+    --fg: #221C15;
+    --muted: #6B6152;
+    --rule: #C9BFA8;
+    --accent: #8C2F26;
+    --accent-fg: #F5F1E6;
+    --gold: #8A6A24;
+    --shadow: 0 1px 0 rgba(34,28,21,0.06);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  .display {
+    font-family: Rockwell, "Roboto Slab", "Noto Serif", Georgia, serif;
+    font-weight: 700;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+  .mono {
+    font-family: "SF Mono", "Cascadia Code", "Roboto Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  a { color: var(--accent); }
+  a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  .spine {
+    position: relative;
+  }
+  .spine::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: max(0px, calc(50% - 560px));
+    width: 1px;
+    background: var(--rule);
+    opacity: 0.6;
+  }
+  @media (max-width: 720px) {
+    .spine::before { display: none; }
+  }
+
+  section.page {
+    position: relative;
+    border-top: 3px solid var(--fg);
+    padding: 88px 32px;
+  }
+  section.page:first-of-type { border-top: none; }
+  .page-inner {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  section.elevated { background: var(--bg-elevated); }
+
+  .eyebrow {
+    font-family: "SF Mono", "Cascadia Code", "Roboto Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 22px;
+    height: 1px;
+    background: var(--accent);
+  }
+
+  h1.display {
+    font-size: clamp(34px, 6vw, 58px);
+    line-height: 1.06;
+    margin: 0 0 22px;
+  }
+  h2.display {
+    font-size: clamp(26px, 4.2vw, 36px);
+    line-height: 1.12;
+    margin: 0 0 20px;
+  }
+  .lede {
+    font-size: 19px;
+    color: var(--muted);
+    max-width: 62ch;
+    margin: 0 0 28px;
+  }
+  p { max-width: 68ch; }
+
+  .rule {
+    border: none;
+    border-top: 1px solid var(--rule);
+    margin: 40px 0;
+  }
+
+  .cta-row {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 32px;
+  }
+  .btn {
+    font-family: inherit;
+    font-size: 14.5px;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 13px 22px;
+    border: 1.5px solid var(--fg);
+    color: var(--fg);
+    background: transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-fg);
+  }
+
+  .stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    padding: 8px 16px;
+    font-family: "SF Mono", "Cascadia Code", "Roboto Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    font-weight: 700;
+    transform: rotate(-2.5deg);
+    border-radius: 2px;
+  }
+
+  ul.frictions, ul.lifecycle, ul.utility {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  ul.frictions li {
+    padding: 20px 0;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    gap: 18px;
+    align-items: baseline;
+  }
+  ul.frictions li:last-child { border-bottom: 1px solid var(--rule); }
+  ul.frictions .mark {
+    font-family: "SF Mono", "Cascadia Code", "Roboto Mono", ui-monospace, monospace;
+    color: var(--accent);
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+
+  ol.lifecycle {
+    list-style: none;
+    counter-reset: step;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  ol.lifecycle li {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 20px;
+    padding: 26px 0;
+    border-top: 1px solid var(--rule);
+    align-items: start;
+  }
+  ol.lifecycle li:last-child { border-bottom: 1px solid var(--rule); }
+  ol.lifecycle li::before {
+    content: counter(step, decimal-leading-zero);
+    font-family: Rockwell, "Roboto Slab", Georgia, serif;
+    font-weight: 700;
+    font-size: 26px;
+    color: var(--gold);
+  }
+  ol.lifecycle h3 {
+    font-family: Rockwell, "Roboto Slab", Georgia, serif;
+    font-size: 19px;
+    margin: 0 0 6px;
+  }
+  ol.lifecycle p { margin: 0; color: var(--muted); font-size: 15px; }
+  .lifecycle-note {
+    margin-top: 20px;
+    padding: 16px 18px;
+    background: var(--bg-elevated);
+    border-left: 3px solid var(--gold);
+    font-size: 14.5px;
+    color: var(--muted);
+  }
+
+  .utility-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-top: 8px;
+  }
+  .utility-card {
+    background: var(--bg);
+    padding: 26px 24px;
+  }
+  section.elevated .utility-card { background: var(--bg-elevated); }
+  .utility-card h3 {
+    font-family: Rockwell, "Roboto Slab", Georgia, serif;
+    font-size: 17px;
+    margin: 0 0 10px;
+  }
+  .utility-card p { font-size: 14.5px; color: var(--muted); margin: 0; }
+
+  .ledger-entries {
+    display: grid;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-top: 8px;
+  }
+  .ledger-row {
+    background: var(--bg-elevated);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    align-items: center;
+    padding: 18px 22px;
+  }
+  .ledger-row .label { font-size: 14px; color: var(--muted); }
+  .ledger-row .value {
+    font-family: "SF Mono", "Cascadia Code", "Roboto Mono", ui-monospace, monospace;
+    font-size: 14px;
+    text-align: right;
+    word-break: break-all;
+  }
+  .ledger-row .value a { color: var(--fg); text-decoration-color: var(--rule); }
+
+  .roadmap-groups {
+    display: grid;
+    gap: 30px;
+    margin-top: 8px;
+  }
+  .roadmap-group .kicker {
+    font-family: "SF Mono", "Cascadia Code", "Roboto Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 10px;
+    display: block;
+  }
+  .roadmap-group ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .roadmap-group li {
+    padding: 12px 0 12px 22px;
+    position: relative;
+    border-top: 1px solid var(--rule);
+    font-size: 15px;
+  }
+  .roadmap-group li:last-child { border-bottom: 1px solid var(--rule); }
+  .roadmap-group li::before {
+    content: "—";
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+  }
+
+  footer.page {
+    text-align: left;
+  }
+  .footer-grid {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 24px;
+  }
+  .footer-brand {
+    font-family: Rockwell, "Roboto Slab", Georgia, serif;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .footer-links { display: flex; gap: 20px; flex-wrap: wrap; }
+  .footer-links a { font-size: 14px; color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--rule); }
+  .footer-links a:hover { color: var(--accent); border-color: var(--accent); }
+
+  @media (max-width: 560px) {
+    section.page { padding: 64px 20px; }
+    ol.lifecycle li { grid-template-columns: 40px 1fr; }
+    .ledger-row { grid-template-columns: 1fr; }
+    .ledger-row .value { text-align: left; }
+  }
+</style>
+
+<div class="spine">
+
+<section class="page">
+  <div class="page-inner">
+    <div class="eyebrow">Ubuntu Pay · GASOK Open MVP Build Phase</div>
+    <h1 class="display">Blockchain for the people who've never heard of blockchain.</h1>
+    <p class="lede">
+      Ubuntu Pay builds peer-to-peer utility dApps for the transactions ordinary people actually have —
+      not for traders. <strong>Ubuntu Escrow</strong> is the first one: two people, funds held by code
+      instead of a company, live and verified on GIWA.
+    </p>
+    <div class="cta-row">
+      <a class="btn primary" href="https://ubuntupay.africa" target="_blank" rel="noopener">Try the live demo →</a>
+      <a class="btn" href="https://sepolia-explorer.giwa.io/address/0xabBDDF83285daa096381E5E4b312afCACA36686a" target="_blank" rel="noopener">Verified contract ↗</a>
+    </div>
+  </div>
+</section>
+
+<section class="page">
+  <div class="page-inner">
+    <div class="eyebrow">The Problem</div>
+    <h2 class="display">Trading with a stranger has always needed a middleman.</h2>
+    <p class="lede">
+      A freelancer and a client. A buyer and a seller who've never met. Someone has to hold the money
+      until the work is actually done — today, that someone is a bank, a platform, or blind trust.
+    </p>
+    <ul class="frictions">
+      <li><span class="mark">—</span><span>Banks and payment platforms exclude the exact people who need a trusted third party most — the ones without accounts, credit history, or a platform's approval.</span></li>
+      <li><span class="mark">—</span><span>Blind trust between strangers gets people burned, every day, in every informal market.</span></li>
+      <li><span class="mark">—</span><span>Crypto was built to solve exactly this — and then made itself unusable for anyone without a computer science background. Seed phrases, gas fees, and wallet jargon are a wall, not a bridge.</span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="page elevated">
+  <div class="page-inner">
+    <div class="eyebrow">The Solution</div>
+    <h2 class="display">The deal holds itself honest.</h2>
+    <p class="lede">
+      Two people agree on a deal. The buyer's funds go into a smart contract — not a company's bank
+      account, not an app's database, not our servers. Neither side has to trust the other, or us.
+    </p>
+    <p>
+      If the seller delivers, the buyer confirms and the contract releases the funds automatically.
+      If the buyer goes quiet, the contract releases the funds to the seller anyway after seven days —
+      no one gets to hold someone else's money hostage.
+    </p>
+  </div>
+</section>
+
+<section class="page">
+  <div class="page-inner">
+    <div class="eyebrow">How It Works</div>
+    <h2 class="display">One contract. Four moves.</h2>
+    <ol class="lifecycle">
+      <li>
+        <div>
+          <h3>Create</h3>
+          <p>A seller lists a deal — open to any buyer, or locked to one specific wallet for a private arrangement.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Fund</h3>
+          <p>The buyer deposits. Funds move into the contract itself — never into anyone's pocket.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Ship</h3>
+          <p>The seller marks the work delivered or the goods shipped.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Release</h3>
+          <p>The buyer confirms receipt. Funds move to the seller instantly, on-chain, minus a 1% platform fee.</p>
+        </div>
+      </li>
+    </ol>
+    <div class="lifecycle-note">
+      If the buyer never confirms, anyone can trigger the same release after a 7-day window — funds
+      never get stuck on a party who's gone silent.
+    </div>
+  </div>
+</section>
+
+<section class="page elevated">
+  <div class="page-inner">
+    <div class="eyebrow">Endless Utility</div>
+    <h2 class="display">One primitive. Every kind of deal.</h2>
+    <p class="lede">The same contract already handles both open and restricted deals — no new code, just a different way of listing one.</p>
+    <div class="utility-grid">
+      <div class="utility-card">
+        <h3>Freelance retainers</h3>
+        <p>Pay a developer, designer, or contractor only when milestones are actually met — without a platform taking a cut of the trust.</p>
+      </div>
+      <div class="utility-card">
+        <h3>Peer marketplaces</h3>
+        <p>Buy and sell goods between strangers without a platform needing to hold anyone's funds.</p>
+      </div>
+      <div class="utility-card">
+        <h3>Informal & cross-border trade</h3>
+        <p>Small traders and diaspora-linked commerce, where the trust gap is widest and formal banking is least available.</p>
+      </div>
+      <div class="utility-card">
+        <h3>…and whatever comes next</h3>
+        <p>Two parties, funds, a delivery condition. If that's the shape of the deal, this contract already handles it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="page">
+  <div class="page-inner">
+    <div class="eyebrow">Proof, Not a Mockup</div>
+    <h2 class="display">It's live. It's verified. It's tested.</h2>
+    <div class="stamp">✓ Verified on GIWA Sepolia</div>
+    <div class="ledger-entries" style="margin-top: 28px;">
+      <div class="ledger-row">
+        <span class="label">Contract address</span>
+        <span class="value"><a href="https://sepolia-explorer.giwa.io/address/0xabBDDF83285daa096381E5E4b312afCACA36686a" target="_blank" rel="noopener">0xabBDDF83285daa096381E5E4b312afCACA36686a</a></span>
+      </div>
+      <div class="ledger-row">
+        <span class="label">Network</span>
+        <span class="value mono">GIWA Sepolia · chain 91342</span>
+      </div>
+      <div class="ledger-row">
+        <span class="label">Live demo</span>
+        <span class="value"><a href="https://ubuntupay.africa" target="_blank" rel="noopener">ubuntupay.africa</a></span>
+      </div>
+      <div class="ledger-row">
+        <span class="label">Contract test suite</span>
+        <span class="value mono">7 / 7 passing</span>
+      </div>
+      <div class="ledger-row">
+        <span class="label">Covered on-chain</span>
+        <span class="value mono">full lifecycle · fee split · timeout release · dispute refund · private-deal enforcement</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="page elevated">
+  <div class="page-inner">
+    <div class="eyebrow">The Roadmap</div>
+    <h2 class="display">The MVP proves the trust model. The roadmap makes it invisible.</h2>
+    <p class="lede">Everything from here is about removing every reason a non-technical person would say no.</p>
+    <div class="roadmap-groups">
+      <div class="roadmap-group">
+        <span class="kicker">Shield non-technical users from crypto entirely</span>
+        <ul>
+          <li>Sponsored gas via paymasters — a first-time user shouldn't need to already own crypto to complete their first deal</li>
+          <li>Social login (Google, Apple, phone number) backed by an embedded wallet — no seed phrase, no private key, no "connect MetaMask"</li>
+          <li>Full fiat on/off-ramp — deposit and withdraw in local currency; the platform handles conversion behind the scenes</li>
+          <li>Stablecoin settlement — no one should need to think in ETH to sell a chicken or a website</li>
+        </ul>
+      </div>
+      <div class="roadmap-group">
+        <span class="kicker">Close the remaining trust gaps</span>
+        <ul>
+          <li>Server-side verification of on-chain state, replacing today's client-reported transaction records</li>
+          <li>A dispute-resolution interface for the arbitration the contract already supports</li>
+          <li>An independent security audit before any mainnet deployment holds real funds</li>
+        </ul>
+      </div>
+      <div class="roadmap-group">
+        <span class="kicker">Scale</span>
+        <ul>
+          <li>Mainnet deployment once GIWA's mainnet is live</li>
+          <li>On-chain reputation, so trust compounds across deals instead of resetting every time</li>
+          <li>The next utility dApp in the Ubuntu Pay family</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="page">
+  <div class="page-inner">
+    <div class="eyebrow">The Ask</div>
+    <h2 class="display">We built the trust primitive. GIWA gets us to the people who need it.</h2>
+    <p class="lede">
+      Ubuntu Escrow is live, verified, and tested on GIWA Sepolia today — not a slide, a working contract
+      anyone can call right now. We're applying to the GASOK Production Stage to take this from testnet
+      proof to a mainnet product, and to keep building the rest of the Ubuntu Pay utility-dApp family on GIWA.
+    </p>
+    <div class="cta-row">
+      <a class="btn primary" href="https://ubuntupay.africa" target="_blank" rel="noopener">Try the live demo →</a>
+      <a class="btn" href="https://github.com/block0xhash/ubuntu-escrow" target="_blank" rel="noopener">View the repo ↗</a>
+    </div>
+  </div>
+</section>
+
+<footer class="page">
+  <div class="page-inner footer-grid">
+    <div class="footer-brand">Ubuntu Pay</div>
+    <div class="footer-links">
+      <a href="https://ubuntupay.africa" target="_blank" rel="noopener">Live demo</a>
+      <a href="https://github.com/block0xhash/ubuntu-escrow" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://sepolia-explorer.giwa.io/address/0xabBDDF83285daa096381E5E4b312afCACA36686a" target="_blank" rel="noopener">Contract</a>
+    </div>
+  </div>
+</footer>
+
+</div>
