@@ -1,4 +1,4 @@
-# Ubuntu Escrow — Technical Design One-Pager
+# Ubuntu Escrow — Technical Design
 
 **Decentralized peer-to-peer escrow marketplace on GIWA L2.**
 Funds are locked in an audited smart contract and only released when both parties confirm the deal went through — no intermediary holds the money.
