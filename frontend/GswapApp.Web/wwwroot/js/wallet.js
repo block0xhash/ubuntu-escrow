@@ -15,16 +15,50 @@ window.gswapWallet = {
     // Wires MetaMask's own change events straight into the Blazor circuit, so the UI
     // reflects whatever network/account the wallet is actually on right now instead of
     // a value captured once at connect time.
+    //
+    // Re-attaches on every call rather than a "register once ever" guard: a Blazor
+    // Server circuit can be torn down and recreated (a dropped SignalR connection that
+    // reconnects past its resume window, a full page reload) without window.ethereum
+    // itself being reset, since it's injected once per page/tab, not per circuit. A
+    // "did I already run this?" flag on window.ethereum would leave the new circuit's
+    // dotNetRef never registered while a stale one from the torn-down circuit keeps
+    // "holding" the listener slot - accountsChanged/chainChanged would still fire, but
+    // straight into a disposed .NET object that can't do anything with them. Removing
+    // the previous listener before attaching the new one avoids that without leaking
+    // handlers across repeated registrations either.
     registerEvents: (dotNetRef) => {
-        if (!window.ethereum || window.ethereum.__gswapListenersAttached) return;
-        window.ethereum.__gswapListenersAttached = true;
+        if (!window.ethereum) return;
 
-        window.ethereum.on('chainChanged', (chainIdHex) => {
+        if (window.ethereum.__gswapChainHandler) {
+            window.ethereum.removeListener('chainChanged', window.ethereum.__gswapChainHandler);
+        }
+        if (window.ethereum.__gswapAccountsHandler) {
+            window.ethereum.removeListener('accountsChanged', window.ethereum.__gswapAccountsHandler);
+        }
+
+        window.ethereum.__gswapChainHandler = (chainIdHex) => {
             dotNetRef.invokeMethodAsync('OnChainChanged', chainIdHex);
-        });
-
-        window.ethereum.on('accountsChanged', (accounts) => {
+        };
+        window.ethereum.__gswapAccountsHandler = (accounts) => {
             dotNetRef.invokeMethodAsync('OnAccountsChanged', accounts && accounts.length > 0 ? accounts[0] : null);
-        });
-    }
+        };
+
+        window.ethereum.on('chainChanged', window.ethereum.__gswapChainHandler);
+        window.ethereum.on('accountsChanged', window.ethereum.__gswapAccountsHandler);
+    },
+
+    // MetaMask has no API for a site to revoke its own connection - once granted, the
+    // permission persists until the user removes it from the extension's own "Connected
+    // sites" list. So "Disconnect" here can only ever mean "forget it locally," and that
+    // has to be remembered past a reload or eth_accounts will just hand the same account
+    // straight back on next page load, silently undoing the disconnect.
+    setDisconnected: (value) => {
+        if (value) {
+            localStorage.setItem('gswap_wallet_disconnected', '1');
+        } else {
+            localStorage.removeItem('gswap_wallet_disconnected');
+        }
+    },
+
+    isDisconnected: () => localStorage.getItem('gswap_wallet_disconnected') === '1',
 };

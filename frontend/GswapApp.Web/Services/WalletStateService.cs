@@ -29,21 +29,31 @@ public class WalletStateService : IDisposable
     /// Reads current wallet/chain state and subscribes to MetaMask's own change events
     /// so ConnectedChainIdHex/ConnectedWallet track reality even when the user switches
     /// network or account from inside the wallet, not just through this app's UI.
+    /// Always re-registers the JS listeners (see wallet.js) rather than assuming a prior
+    /// registration is still live, since this can legitimately run again after a Blazor
+    /// Server circuit is torn down and recreated.
     /// </summary>
     public async Task InitializeAsync()
     {
         try
         {
-            var accounts = await _jsRuntime.InvokeAsync<string[]>("gswapWallet.getAccounts");
-            if (accounts is { Length: > 0 })
-            {
-                ConnectedWallet = accounts[0];
-            }
+            _selfRef ??= DotNetObjectReference.Create(this);
+            await _jsRuntime.InvokeVoidAsync("gswapWallet.registerEvents", _selfRef);
 
             ConnectedChainIdHex = await _jsRuntime.InvokeAsync<string?>("gswapWallet.getChainId");
 
-            _selfRef = DotNetObjectReference.Create(this);
-            await _jsRuntime.InvokeVoidAsync("gswapWallet.registerEvents", _selfRef);
+            // Respect an explicit prior disconnect: MetaMask itself has no concept of a
+            // site disconnecting, so eth_accounts would otherwise just hand back the
+            // same account and silently undo the user's choice on every reload.
+            var disconnected = await _jsRuntime.InvokeAsync<bool>("gswapWallet.isDisconnected");
+            if (!disconnected)
+            {
+                var accounts = await _jsRuntime.InvokeAsync<string[]>("gswapWallet.getAccounts");
+                if (accounts is { Length: > 0 })
+                {
+                    ConnectedWallet = accounts[0];
+                }
+            }
 
             NotifyStateChanged();
         }
@@ -81,6 +91,7 @@ public class WalletStateService : IDisposable
             }
 
             ConnectedChainIdHex = await _jsRuntime.InvokeAsync<string?>("gswapWallet.getChainId");
+            await _jsRuntime.InvokeVoidAsync("gswapWallet.setDisconnected", false);
             NotifyStateChanged();
         }
         catch (Exception ex)
@@ -89,11 +100,11 @@ public class WalletStateService : IDisposable
         }
     }
 
-    public Task DisconnectAsync()
+    public async Task DisconnectAsync()
     {
         ConnectedWallet = string.Empty;
+        await _jsRuntime.InvokeVoidAsync("gswapWallet.setDisconnected", true);
         NotifyStateChanged();
-        return Task.CompletedTask;
     }
 
     private void NotifyStateChanged() => OnWalletChanged?.Invoke();
