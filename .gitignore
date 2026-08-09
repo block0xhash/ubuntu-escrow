@@ -5,6 +5,9 @@
 *.pem
 *.pfx
 contracts/x.sh
+contracts/y.sh
+contracts/z.sh
+contracts/w.sh
 
 # ==== .NET / Blazor build artifacts ====
 frontend/**/bin/
