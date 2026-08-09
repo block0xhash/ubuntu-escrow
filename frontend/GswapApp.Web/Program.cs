@@ -14,6 +14,7 @@ builder.Services.AddMudServices();
 builder.Services.Configure<GswapSettings>(builder.Configuration.GetSection(GswapSettings.SectionName));
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<GswapSettings>>().Value);
 builder.Services.AddScoped<WalletStateService>();
+builder.Services.AddScoped<WalletConnectHelper>();
 builder.Services.AddSingleton<GswapContractService>();
 
 var app = builder.Build();

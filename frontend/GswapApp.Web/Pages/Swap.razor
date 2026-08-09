@@ -5,6 +5,7 @@
 @inject GswapSettings Settings
 @inject GswapContractService Contracts
 @inject WalletStateService WalletState
+@inject WalletConnectHelper WalletConnect
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
@@ -350,9 +351,11 @@
         switch (_actionState)
         {
             case ActionState.Connect:
-                await WalletState.ConnectAsync();
-                await RefreshBalancesAsync();
-                UpdateActionState();
+                if (await WalletConnect.TryConnectAsync())
+                {
+                    await RefreshBalancesAsync();
+                    UpdateActionState();
+                }
                 break;
             case ActionState.Approve:
                 await ApproveAsync();
