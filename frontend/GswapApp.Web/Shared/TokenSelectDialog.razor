@@ -1,0 +1,115 @@
+@using System.Text.RegularExpressions
+@inject GswapSettings Settings
+@inject GswapContractService Contracts
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Select a token</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField T="string" @bind-Value="_query" @bind-Value:after="OnQueryChanged" Immediate="true"
+                      Placeholder="Search name or paste an address" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-2" />
+
+        @if (_resolving)
+        {
+            <div class="d-flex align-center gap-2 pa-3">
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dimmer);">Looking up contract...</MudText>
+            </div>
+        }
+        else if (_resolveError is not null)
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Class="mb-2">@_resolveError</MudAlert>
+        }
+        else if (_imported is not null)
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">
+                Anyone can create a token with any name. Verify the contract address before trading.
+            </MudAlert>
+            <MudListItem T="TokenInfo" OnClick="@(() => Select(_imported))" Class="rounded-lg" Style="border:1px solid var(--gswap-border-soft);">
+                <div class="d-flex align-center justify-space-between py-1">
+                    <div>
+                        <MudText Typo="Typo.subtitle1" Class="fw-bold">@_imported.Symbol</MudText>
+                        <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dimmer);">@_imported.Name</MudText>
+                        <MudText Typo="Typo.caption" Class="gswap-mono d-block" Style="color:var(--gswap-text-dim);">@_imported.Address</MudText>
+                    </div>
+                </div>
+            </MudListItem>
+        }
+        else
+        {
+            <MudList T="TokenInfo">
+                @foreach (var token in FilteredTokens())
+                {
+                    <MudListItem T="TokenInfo" OnClick="@(() => Select(token))" Class="rounded-lg">
+                        <div class="d-flex align-center justify-space-between py-1">
+                            <div>
+                                <MudText Typo="Typo.subtitle1" Class="fw-bold">@token.Symbol</MudText>
+                                <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dimmer);">@token.Name</MudText>
+                            </div>
+                        </div>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string? Exclude { get; set; }
+
+    private static readonly Regex AddressPattern = new("^0x[a-fA-F0-9]{40}$", RegexOptions.Compiled);
+
+    private string _query = "";
+    private bool _resolving;
+    private string? _resolveError;
+    private TokenInfo? _imported;
+
+    private IEnumerable<TokenInfo> FilteredTokens()
+    {
+        var tokens = Settings.AllSelectableTokens().Where(t => t.Symbol != Exclude);
+        if (string.IsNullOrWhiteSpace(_query)) return tokens;
+
+        return tokens.Where(t =>
+            t.Symbol.Contains(_query, StringComparison.OrdinalIgnoreCase) ||
+            t.Name.Contains(_query, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task OnQueryChanged()
+    {
+        _imported = null;
+        _resolveError = null;
+
+        var candidate = _query.Trim();
+        if (!AddressPattern.IsMatch(candidate))
+        {
+            return;
+        }
+
+        if (Settings.AllSelectableTokens().Any(t => string.Equals(t.Address, candidate, StringComparison.OrdinalIgnoreCase)))
+        {
+            return; // already a known token - the plain list filter handles it
+        }
+
+        _resolving = true;
+        StateHasChanged();
+
+        try
+        {
+            _imported = await Contracts.GetErc20InfoAsync(candidate);
+        }
+        catch
+        {
+            _resolveError = "Couldn't read an ERC20 contract at that address on this network.";
+        }
+        finally
+        {
+            _resolving = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Select(TokenInfo token) => MudDialog.Close(DialogResult.Ok(token));
+}

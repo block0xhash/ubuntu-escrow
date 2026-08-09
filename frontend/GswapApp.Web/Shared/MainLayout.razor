@@ -1,0 +1,205 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject WalletStateService WalletState
+@inject GswapSettings Settings
+@inject IJSRuntime JS
+
+<MudThemeProvider Theme="_theme" IsDarkMode="true" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="0" Fixed="true" Class="px-6 gswap-appbar">
+        <a href="/" class="d-flex align-center text-decoration-none mr-8" style="gap: 10px;">
+            <img src="img/logo-mark.svg" alt="" width="34" height="34" />
+            <MudText Typo="Typo.h6" Class="fw-bold gswap-brand-text" Style="letter-spacing: -0.3px;">GSWAP</MudText>
+        </a>
+
+        <MudNavMenu Class="d-flex flex-row gap-1 align-center pa-0 gswap-nav" Style="background: transparent;">
+            <MudNavLink Href="" Match="NavLinkMatch.All" Class="rounded-pill px-4 py-2">Swap</MudNavLink>
+            <MudNavLink Href="pool" Match="NavLinkMatch.Prefix" Class="rounded-pill px-4 py-2">Pool</MudNavLink>
+            <MudNavLink Href="positions" Match="NavLinkMatch.Prefix" Class="rounded-pill px-4 py-2">Positions</MudNavLink>
+            <MudNavLink Href="explore" Match="NavLinkMatch.Prefix" Class="rounded-pill px-4 py-2">Explore</MudNavLink>
+        </MudNavMenu>
+
+        <MudSpacer />
+
+        <div class="d-flex align-center gap-3">
+            @if (!string.IsNullOrEmpty(WalletState.ConnectedWallet))
+            {
+                <div class="d-none d-md-flex align-center gswap-chip px-3 py-1" style="background:var(--gswap-surface); border:1px solid @(_onExpectedChain ? "var(--gswap-border-soft)" : "var(--gswap-bad)");">
+                    <span class="gswap-network-dot" style="background:@(_onExpectedChain ? "var(--gswap-ok)" : "var(--gswap-bad)");"></span>
+                    <MudText Typo="Typo.caption" Class="gswap-mono" Style="color:var(--gswap-text-dimmer);">@_networkLabel</MudText>
+                    @if (!_onExpectedChain)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Class="ml-2 pa-0" Style="min-width:0; color:var(--gswap-accent);" OnClick="SwitchNetwork">
+                            Switch
+                        </MudButton>
+                    }
+                </div>
+            }
+
+            @if (string.IsNullOrEmpty(WalletState.ConnectedWallet))
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ConnectWallet" Class="gswap-chip px-5 fw-bold">
+                    Connect Wallet
+                </MudButton>
+            }
+            else
+            {
+                <div class="d-flex align-center px-3 py-1 gswap-chip gswap-wallet-pill">
+                    <MudBadge Dot="true" Color="Color.Success" Overlap="true" Class="mr-2">
+                        <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Size="Size.Small" />
+                    </MudBadge>
+                    <span class="gswap-mono" style="font-size: 13px;">@TruncateAddress(WalletState.ConnectedWallet)</span>
+                    <MudIconButton Icon="@Icons.Material.Filled.Logout" Size="Size.Small" OnClick="DisconnectWallet" Class="ml-1" title="Disconnect" />
+                </div>
+            }
+        </div>
+    </MudAppBar>
+
+    @if (!Settings.IsDeployed)
+    {
+        <div class="gswap-deploy-banner">
+            <MudIcon Icon="@Icons.Material.Filled.WarningAmber" Size="Size.Small" Class="mr-2" />
+            <MudText Typo="Typo.caption">
+                GSWAP core contracts haven't been deployed yet - the UI renders, but swaps and liquidity actions will fail until Router/Factory/WETH are set in appsettings.json.
+            </MudText>
+        </div>
+    }
+
+    <MudMainContent Class="gswap-main">
+        <MudContainer MaxWidth="MaxWidth.Small" Class="pt-12 pb-16">
+            @Body
+        </MudContainer>
+
+        <footer class="gswap-footer">
+            <MudText Typo="Typo.caption">GSWAP - an AMM forked from the Uniswap V2 design.</MudText>
+            <MudText Typo="Typo.caption">
+                <MudLink Href="@_explorerUrl" Target="_blank" Style="color:var(--gswap-text-dim);">Block explorer ↗</MudLink>
+            </MudText>
+        </footer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private MudTheme _theme = new()
+    {
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#f2a53c",
+            Secondary = "#f2a53c",
+            Background = "#0a0a0b",
+            Surface = "#131314",
+            AppbarBackground = "#0a0a0b",
+            DrawerBackground = "#0a0a0b",
+            TextPrimary = "#ededec",
+            TextSecondary = "#9a9a9d",
+            ActionDefault = "#9a9a9d",
+            LinesDefault = "#232325",
+            Success = "#4fae7a",
+            Error = "#c9584f",
+            Warning = "#f2a53c",
+        },
+        Typography = new Typography
+        {
+            Default = new DefaultTypography
+            {
+                FontFamily = new[] { "IBM Plex Sans", "system-ui", "Helvetica", "Arial", "sans-serif" }
+            },
+            H1 = new H1Typography { FontFamily = new[] { "JetBrains Mono", "ui-monospace", "monospace" } },
+            H2 = new H2Typography { FontFamily = new[] { "JetBrains Mono", "ui-monospace", "monospace" } },
+            H3 = new H3Typography { FontFamily = new[] { "JetBrains Mono", "ui-monospace", "monospace" } },
+            H4 = new H4Typography { FontFamily = new[] { "JetBrains Mono", "ui-monospace", "monospace" } },
+            H5 = new H5Typography { FontFamily = new[] { "JetBrains Mono", "ui-monospace", "monospace" } },
+            H6 = new H6Typography { FontFamily = new[] { "JetBrains Mono", "ui-monospace", "monospace" } },
+        },
+        LayoutProperties = new LayoutProperties
+        {
+            DefaultBorderRadius = "6px"
+        }
+    };
+
+    private string _explorerUrl = "";
+    private string _networkLabel = "";
+    private bool _onExpectedChain;
+
+    // A handful of well-known chains so the badge reads as a name where it reasonably
+    // can - anything else (including GIWA, deliberately not named here) falls back to
+    // its raw chain ID, which is exactly what the wallet itself reports.
+    private static readonly Dictionary<int, string> KnownChains = new()
+    {
+        [1] = "Ethereum",
+        [11155111] = "Sepolia",
+        [10] = "OP Mainnet",
+        [8453] = "Base",
+        [42161] = "Arbitrum",
+        [137] = "Polygon",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _explorerUrl = Settings.BlockExplorerUrl;
+        WalletState.OnWalletChanged += HandleWalletChanged;
+        await WalletState.InitializeAsync();
+        RecomputeNetworkLabel();
+    }
+
+    private void HandleWalletChanged()
+    {
+        RecomputeNetworkLabel();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void RecomputeNetworkLabel()
+    {
+        var chainIdHex = WalletState.ConnectedChainIdHex;
+        if (string.IsNullOrEmpty(chainIdHex))
+        {
+            _networkLabel = "Unknown network";
+            _onExpectedChain = false;
+            return;
+        }
+
+        _onExpectedChain = string.Equals(chainIdHex, Settings.ChainIdHex, StringComparison.OrdinalIgnoreCase);
+
+        if (_onExpectedChain)
+        {
+            _networkLabel = $"Chain {Settings.ChainId}";
+            return;
+        }
+
+        try
+        {
+            var id = Convert.ToInt32(chainIdHex, 16);
+            _networkLabel = KnownChains.TryGetValue(id, out var name) ? $"Wrong network ({name})" : $"Wrong network ({id})";
+        }
+        catch
+        {
+            _networkLabel = "Wrong network";
+        }
+    }
+
+    private async Task ConnectWallet()
+    {
+        await WalletState.ConnectAsync();
+        RecomputeNetworkLabel();
+    }
+
+    private async Task DisconnectWallet() => await WalletState.DisconnectAsync();
+
+    private async Task SwitchNetwork()
+    {
+        await WalletState.EnsureCorrectNetworkAsync();
+    }
+
+    private string TruncateAddress(string addr) =>
+        string.IsNullOrEmpty(addr) || addr.Length < 10 ? addr : $"{addr.Substring(0, 6)}...{addr.Substring(addr.Length - 4)}";
+
+    public void Dispose()
+    {
+        WalletState.OnWalletChanged -= HandleWalletChanged;
+    }
+}

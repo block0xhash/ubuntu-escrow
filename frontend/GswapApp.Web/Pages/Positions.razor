@@ -1,0 +1,140 @@
+@page "/positions"
+@using System.Numerics
+@implements IDisposable
+@inject GswapSettings Settings
+@inject GswapContractService Contracts
+@inject WalletStateService WalletState
+@inject NavigationManager Navigation
+
+<PageTitle>Positions - GSWAP</PageTitle>
+
+<div class="d-flex justify-space-between align-center mb-4">
+    <MudText Typo="Typo.h5" Class="fw-bold">Your positions</MudText>
+    <MudButton Variant="Variant.Outlined" Class="gswap-chip" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">
+        Refresh
+    </MudButton>
+</div>
+
+@if (string.IsNullOrEmpty(WalletState.ConnectedWallet))
+{
+    <MudPaper Class="pa-8 text-center gswap-card" Style="background:var(--gswap-surface); border:1px solid var(--gswap-border);" Elevation="0">
+        <MudText Style="color:var(--gswap-text-dimmer);">Connect a wallet to see your liquidity positions.</MudText>
+    </MudPaper>
+}
+else if (_loading)
+{
+    <div class="d-flex justify-center my-8"><MudProgressCircular Indeterminate="true" Color="Color.Primary" /></div>
+}
+else if (_positions.Count == 0)
+{
+    <MudPaper Class="pa-8 text-center gswap-card" Style="background:var(--gswap-surface); border:1px solid var(--gswap-border);" Elevation="0">
+        <MudText Style="color:var(--gswap-text-dimmer);">No liquidity positions yet.</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="gswap-chip mt-4" Href="/pool">Add liquidity</MudButton>
+    </MudPaper>
+}
+else
+{
+    @foreach (var p in _positions)
+    {
+        <MudPaper Class="pa-4 mb-3 gswap-card" Style="background:var(--gswap-surface); border:1px solid var(--gswap-border);" Elevation="0">
+            <div class="d-flex justify-space-between align-center mb-2">
+                <MudText Typo="Typo.subtitle1" Class="fw-bold">@p.SymbolA / @p.SymbolB</MudText>
+                <MudText Typo="Typo.caption" Class="gswap-mono" Style="color:var(--gswap-text-dim);">@p.SharePct.ToString("0.0000")% of pool</MudText>
+            </div>
+            <div class="d-flex justify-space-between mb-1">
+                <MudText Typo="Typo.body2" Style="color:var(--gswap-text-dimmer);">Pooled @p.SymbolA</MudText>
+                <MudText Typo="Typo.body2" Class="gswap-mono">@TokenAmount.FromWei(p.AmountA, p.DecimalsA)</MudText>
+            </div>
+            <div class="d-flex justify-space-between mb-3">
+                <MudText Typo="Typo.body2" Style="color:var(--gswap-text-dimmer);">Pooled @p.SymbolB</MudText>
+                <MudText Typo="Typo.body2" Class="gswap-mono">@TokenAmount.FromWei(p.AmountB, p.DecimalsB)</MudText>
+            </div>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="gswap-chip" FullWidth="true"
+                       OnClick="@(() => Navigation.NavigateTo($"/pool/{p.SymbolA}/{p.SymbolB}"))">
+                Manage
+            </MudButton>
+        </MudPaper>
+    }
+}
+
+@code {
+    private record Position(string SymbolA, string SymbolB, int DecimalsA, int DecimalsB, BigInteger AmountA, BigInteger AmountB, decimal SharePct);
+
+    private bool _loading = true;
+    private List<Position> _positions = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        WalletState.OnWalletChanged += OnWalletChanged;
+        await LoadAsync();
+    }
+
+    private async void OnWalletChanged()
+    {
+        await LoadAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadAsync()
+    {
+        if (string.IsNullOrEmpty(WalletState.ConnectedWallet) || !Settings.IsDeployed)
+        {
+            _positions = new();
+            _loading = false;
+            StateHasChanged();
+            return;
+        }
+
+        _loading = true;
+        StateHasChanged();
+
+        var found = new List<Position>();
+        try
+        {
+            var count = await Contracts.GetAllPairsLengthAsync();
+            for (BigInteger i = 0; i < count; i++)
+            {
+                var pairAddress = await Contracts.GetAllPairAtAsync(i);
+                var lpBalance = await Contracts.GetLpBalanceAsync(pairAddress, WalletState.ConnectedWallet);
+                if (lpBalance == 0) continue;
+
+                var reserves = await Contracts.GetReservesAsync(pairAddress);
+                var totalSupply = await Contracts.GetPairTotalSupplyAsync(pairAddress);
+                if (totalSupply == 0) continue;
+
+                var tokenA = Resolve(reserves.Token0);
+                var tokenB = Resolve(reserves.Token1);
+                var amountA = lpBalance * reserves.Reserve0 / totalSupply;
+                var amountB = lpBalance * reserves.Reserve1 / totalSupply;
+                var share = (decimal)lpBalance * 100m / (decimal)totalSupply;
+
+                found.Add(new Position(tokenA.Symbol, tokenB.Symbol, tokenA.Decimals, tokenB.Decimals, amountA, amountB, share));
+            }
+        }
+        catch
+        {
+            // RPC hiccup - leave whatever was already loaded
+        }
+
+        _positions = found;
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private TokenInfo Resolve(string address)
+    {
+        if (string.Equals(address, Settings.WethAddress, StringComparison.OrdinalIgnoreCase))
+        {
+            return Settings.NativeEth;
+        }
+        var known = Settings.Tokens.FirstOrDefault(t => string.Equals(t.Address, address, StringComparison.OrdinalIgnoreCase));
+        if (known != null) return known;
+
+        return new TokenInfo { Symbol = $"{address[..6]}…", Name = address, Address = address, Decimals = 18 };
+    }
+
+    public void Dispose()
+    {
+        WalletState.OnWalletChanged -= OnWalletChanged;
+    }
+}

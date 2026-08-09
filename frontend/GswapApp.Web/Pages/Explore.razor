@@ -1,0 +1,132 @@
+@page "/explore"
+@using System.Numerics
+@inject GswapSettings Settings
+@inject GswapContractService Contracts
+@inject NavigationManager Navigation
+
+<PageTitle>Explore - GSWAP</PageTitle>
+
+<div class="d-flex justify-space-between align-center mb-4">
+    <MudText Typo="Typo.h5" Class="fw-bold">Pools</MudText>
+    <MudButton Variant="Variant.Outlined" Class="gswap-chip" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">
+        Refresh
+    </MudButton>
+</div>
+
+@if (!Settings.IsDeployed)
+{
+    <MudAlert Severity="Severity.Warning" Dense="true">GSWAP hasn't been deployed yet - nothing to list.</MudAlert>
+}
+else if (_loading)
+{
+    <div class="d-flex justify-center my-8"><MudProgressCircular Indeterminate="true" Color="Color.Primary" /></div>
+}
+else if (_pools.Count == 0)
+{
+    <MudPaper Class="pa-8 text-center gswap-card" Style="background:var(--gswap-surface); border:1px solid var(--gswap-border);" Elevation="0">
+        <MudText Style="color:var(--gswap-text-dimmer);">No pools yet. Be the first to add liquidity.</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="gswap-chip mt-4" Href="/pool">Add liquidity</MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudPaper Class="gswap-card" Style="background:var(--gswap-surface); border:1px solid var(--gswap-border); overflow:hidden;" Elevation="0">
+        <MudTable Items="_pools" Hover="true" Dense="true" Style="background:transparent;">
+            <HeaderContent>
+                <MudTh>Pool</MudTh>
+                <MudTh>Reserve A</MudTh>
+                <MudTh>Reserve B</MudTh>
+                <MudTh>Est. TVL (ETH)</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Pool"><span class="fw-bold">@context.SymbolA / @context.SymbolB</span></MudTd>
+                <MudTd DataLabel="Reserve A"><span class="gswap-mono">@TokenAmount.FromWei(context.ReserveA, context.DecimalsA, 4)</span></MudTd>
+                <MudTd DataLabel="Reserve B"><span class="gswap-mono">@TokenAmount.FromWei(context.ReserveB, context.DecimalsB, 4)</span></MudTd>
+                <MudTd DataLabel="TVL">
+                    @if (context.EthTvl is decimal tvl)
+                    {
+                        <span class="gswap-mono">@tvl.ToString("0.0000") ETH</span>
+                    }
+                    else
+                    {
+                        <span style="color:var(--gswap-text-dim);">—</span>
+                    }
+                </MudTd>
+                <MudTd>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Class="gswap-chip mr-2"
+                               OnClick="@(() => Navigation.NavigateTo($"/pool/{context.SymbolA}/{context.SymbolB}"))">
+                        Add
+                    </MudButton>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+}
+
+@code {
+    private record Pool(string SymbolA, string SymbolB, int DecimalsA, int DecimalsB, BigInteger ReserveA, BigInteger ReserveB, decimal? EthTvl);
+
+    private bool _loading = true;
+    private List<Pool> _pools = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        if (!Settings.IsDeployed)
+        {
+            _loading = false;
+            return;
+        }
+
+        _loading = true;
+        StateHasChanged();
+
+        var found = new List<Pool>();
+        try
+        {
+            var count = await Contracts.GetAllPairsLengthAsync();
+            for (BigInteger i = 0; i < count; i++)
+            {
+                var pairAddress = await Contracts.GetAllPairAtAsync(i);
+                var reserves = await Contracts.GetReservesAsync(pairAddress);
+
+                var tokenA = Resolve(reserves.Token0);
+                var tokenB = Resolve(reserves.Token1);
+
+                decimal? tvl = null;
+                if (tokenA.IsNative)
+                {
+                    tvl = decimal.Parse(TokenAmount.FromWei(reserves.Reserve0 * 2, 18, 8));
+                }
+                else if (tokenB.IsNative)
+                {
+                    tvl = decimal.Parse(TokenAmount.FromWei(reserves.Reserve1 * 2, 18, 8));
+                }
+
+                found.Add(new Pool(tokenA.Symbol, tokenB.Symbol, tokenA.Decimals, tokenB.Decimals, reserves.Reserve0, reserves.Reserve1, tvl));
+            }
+        }
+        catch
+        {
+            // RPC hiccup - leave whatever was already loaded
+        }
+
+        _pools = found;
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private TokenInfo Resolve(string address)
+    {
+        if (string.Equals(address, Settings.WethAddress, StringComparison.OrdinalIgnoreCase))
+        {
+            return Settings.NativeEth;
+        }
+        var known = Settings.Tokens.FirstOrDefault(t => string.Equals(t.Address, address, StringComparison.OrdinalIgnoreCase));
+        if (known != null) return known;
+
+        return new TokenInfo { Symbol = $"{address[..6]}…", Name = address, Address = address, Decimals = 18 };
+    }
+}

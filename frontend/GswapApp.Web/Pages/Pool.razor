@@ -1,0 +1,419 @@
+@page "/pool"
+@page "/pool/{TokenASymbol}/{TokenBSymbol}"
+@using System.Numerics
+@implements IDisposable
+@inject GswapSettings Settings
+@inject GswapContractService Contracts
+@inject WalletStateService WalletState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Pool - GSWAP</PageTitle>
+
+<MudText Typo="Typo.h5" Class="fw-bold mb-4">Pool</MudText>
+
+<MudPaper Class="pa-4 gswap-card" Style="background:var(--gswap-surface); border:1px solid var(--gswap-border);" Elevation="0">
+    <MudTabs Rounded="true" Color="Color.Primary" SliderColor="Color.Primary" ApplyEffectsToContainer="true" Class="gswap-tabs">
+
+        <MudTabPanel Text="Add liquidity" Class="pt-4">
+            @if (!_pairExists)
+            {
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                    No pool exists yet for this pair - your deposit sets the starting price.
+                </MudAlert>
+            }
+
+            <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);">Token A</MudText>
+            <div class="d-flex align-center gap-2 mb-3 mt-1">
+                <MudTextField T="string" @bind-Value="_amountAText" @bind-Value:after="@(() => OnAmountChanged(true))"
+                              Placeholder="0.0" Variant="Variant.Text" Class="gswap-amount-input flex-grow-1" Style="font-size:1.5rem;" Immediate="true" />
+                <MudButton Variant="Variant.Filled" Class="gswap-chip px-4" Style="background:var(--gswap-surface-2); color:var(--gswap-text);" OnClick="@(() => PickToken(true))">
+                    @TokenA.Symbol <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" Class="ml-1" />
+                </MudButton>
+            </div>
+            @if (!string.IsNullOrEmpty(WalletState.ConnectedWallet))
+            {
+                <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);" Class="mb-3 d-block">Balance: @TokenAmount.FromWei(_balanceA, TokenA.Decimals) @TokenA.Symbol</MudText>
+            }
+
+            <div class="d-flex justify-center my-n2"><MudIcon Icon="@Icons.Material.Filled.Add" Style="color:var(--gswap-text-dim);" /></div>
+
+            <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);" Class="mt-2">Token B</MudText>
+            <div class="d-flex align-center gap-2 mb-3 mt-1">
+                <MudTextField T="string" @bind-Value="_amountBText" @bind-Value:after="@(() => OnAmountChanged(false))"
+                              Placeholder="0.0" Variant="Variant.Text" Class="gswap-amount-input flex-grow-1" Style="font-size:1.5rem;" Immediate="true" />
+                <MudButton Variant="Variant.Filled" Class="gswap-chip px-4" Style="background:var(--gswap-surface-2); color:var(--gswap-text);" OnClick="@(() => PickToken(false))">
+                    @TokenB.Symbol <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" Class="ml-1" />
+                </MudButton>
+            </div>
+            @if (!string.IsNullOrEmpty(WalletState.ConnectedWallet))
+            {
+                <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);" Class="mb-3 d-block">Balance: @TokenAmount.FromWei(_balanceB, TokenB.Decimals) @TokenB.Symbol</MudText>
+            }
+
+            @if (_pairExists && _poolSharePct is decimal share)
+            {
+                <div class="d-flex justify-space-between mb-3">
+                    <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);">Share of pool</MudText>
+                    <MudText Typo="Typo.caption" Class="gswap-mono">@share.ToString("0.0000")%</MudText>
+                </div>
+            }
+
+            <MudButton FullWidth="true" Size="Size.Large" Class="gswap-chip py-3" Disabled="@(_addState == AddState.Disabled)"
+                       Color="Color.Primary" Variant="Variant.Filled" OnClick="OnAddActionClick">
+                @_addActionLabel
+            </MudButton>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Remove liquidity" Class="pt-4">
+            @if (!_pairExists)
+            {
+                <MudAlert Severity="Severity.Info" Dense="true">This pair has no pool yet.</MudAlert>
+            }
+            else if (_lpBalance == 0)
+            {
+                <MudAlert Severity="Severity.Info" Dense="true">You have no liquidity in @TokenA.Symbol/@TokenB.Symbol.</MudAlert>
+            }
+            else
+            {
+                <MudText Typo="Typo.h3" Class="text-center gswap-mono my-4">@_removePct%</MudText>
+                <MudSlider T="int" @bind-Value="_removePct" Min="0" Max="100" Step="1" Color="Color.Primary" Class="mb-4" />
+
+                <div class="d-flex gap-2 mb-4">
+                    @foreach (var preset in new[] { 25, 50, 75, 100 })
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Class="gswap-chip flex-grow-1"
+                                   OnClick="@(() => _removePct = preset)">@preset%</MudButton>
+                    }
+                </div>
+
+                <div class="d-flex justify-space-between mb-1">
+                    <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);">@TokenA.Symbol</MudText>
+                    <MudText Typo="Typo.caption" Class="gswap-mono">@TokenAmount.FromWei(_removeAmountA, TokenA.Decimals)</MudText>
+                </div>
+                <div class="d-flex justify-space-between mb-3">
+                    <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);">@TokenB.Symbol</MudText>
+                    <MudText Typo="Typo.caption" Class="gswap-mono">@TokenAmount.FromWei(_removeAmountB, TokenB.Decimals)</MudText>
+                </div>
+
+                <MudButton FullWidth="true" Size="Size.Large" Class="gswap-chip py-3" Disabled="@(_removePct == 0)"
+                           Color="Color.Primary" Variant="Variant.Filled" OnClick="OnRemoveActionClick">
+                    @_removeActionLabel
+                </MudButton>
+            }
+        </MudTabPanel>
+
+    </MudTabs>
+</MudPaper>
+
+@code {
+    private enum AddState { Disabled, Connect, ApproveA, ApproveB, Add }
+
+    [Parameter] public string? TokenASymbol { get; set; }
+    [Parameter] public string? TokenBSymbol { get; set; }
+
+    private TokenInfo TokenA = null!;
+    private TokenInfo TokenB = null!;
+
+    private string _amountAText = "";
+    private string _amountBText = "";
+    private BigInteger _amountAWei;
+    private BigInteger _amountBWei;
+    private BigInteger _balanceA;
+    private BigInteger _balanceB;
+    private BigInteger _allowanceA;
+    private BigInteger _allowanceB;
+
+    private bool _pairExists;
+    private string _pairAddress = GswapSettings.ZeroAddress;
+    private BigInteger _reserveA;
+    private BigInteger _reserveB;
+    private BigInteger _pairTotalSupply;
+    private decimal? _poolSharePct;
+
+    private AddState _addState = AddState.Connect;
+    private string _addActionLabel = "Connect Wallet";
+
+    private BigInteger _lpBalance;
+    private int _removePct = 50;
+    private BigInteger _removeAmountA;
+    private BigInteger _removeAmountB;
+    private string _removeActionLabel = "Remove";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var known = Settings.AllSelectableTokens().ToList();
+        TokenA = known.FirstOrDefault(t => string.Equals(t.Symbol, TokenASymbol, StringComparison.OrdinalIgnoreCase))
+                 ?? Settings.NativeEth;
+        TokenB = known.FirstOrDefault(t => string.Equals(t.Symbol, TokenBSymbol, StringComparison.OrdinalIgnoreCase))
+                 ?? Settings.Tokens.FirstOrDefault() ?? Settings.NativeEth;
+        WalletState.OnWalletChanged += OnWalletChanged;
+        await RefreshPoolStateAsync();
+    }
+
+    private async void OnWalletChanged()
+    {
+        await RefreshPoolStateAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task PickToken(bool isA)
+    {
+        var parameters = new DialogParameters<TokenSelectDialog>
+        {
+            { x => x.Exclude, isA ? TokenB.Symbol : TokenA.Symbol }
+        };
+        var dialog = await DialogService.ShowAsync<TokenSelectDialog>("Select a token", parameters);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not TokenInfo picked) return;
+
+        if (isA) TokenA = picked; else TokenB = picked;
+        await RefreshPoolStateAsync();
+    }
+
+    private async Task RefreshPoolStateAsync()
+    {
+        var addrA = TokenA.IsNative ? Settings.WethAddress : TokenA.Address;
+        var addrB = TokenB.IsNative ? Settings.WethAddress : TokenB.Address;
+
+        try
+        {
+            _pairAddress = await Contracts.GetPairAsync(addrA, addrB);
+            _pairExists = _pairAddress != GswapSettings.ZeroAddress;
+
+            if (_pairExists)
+            {
+                var reserves = await Contracts.GetReservesAsync(_pairAddress);
+                (_reserveA, _reserveB) = string.Equals(reserves.Token0, addrA, StringComparison.OrdinalIgnoreCase)
+                    ? (reserves.Reserve0, reserves.Reserve1)
+                    : (reserves.Reserve1, reserves.Reserve0);
+                _pairTotalSupply = await Contracts.GetPairTotalSupplyAsync(_pairAddress);
+            }
+            else
+            {
+                _reserveA = 0;
+                _reserveB = 0;
+                _pairTotalSupply = 0;
+            }
+
+            if (!string.IsNullOrEmpty(WalletState.ConnectedWallet))
+            {
+                _balanceA = await Contracts.GetBalanceAsync(TokenA.IsNative ? "" : TokenA.Address, WalletState.ConnectedWallet);
+                _balanceB = await Contracts.GetBalanceAsync(TokenB.IsNative ? "" : TokenB.Address, WalletState.ConnectedWallet);
+                _allowanceA = TokenA.IsNative ? BigInteger.Pow(2, 200) : await Contracts.GetAllowanceAsync(TokenA.Address, WalletState.ConnectedWallet, Settings.RouterAddress);
+                _allowanceB = TokenB.IsNative ? BigInteger.Pow(2, 200) : await Contracts.GetAllowanceAsync(TokenB.Address, WalletState.ConnectedWallet, Settings.RouterAddress);
+                _lpBalance = _pairExists ? await Contracts.GetLpBalanceAsync(_pairAddress, WalletState.ConnectedWallet) : 0;
+            }
+        }
+        catch
+        {
+            // RPC hiccup or contracts not deployed - keep last-known state
+        }
+
+        RecomputeRemoveAmounts();
+        UpdateAddState();
+    }
+
+    private async Task OnAmountChanged(bool changedA)
+    {
+        if (changedA)
+        {
+            _amountAWei = TokenAmount.ToWei(_amountAText, TokenA.Decimals);
+            if (_pairExists && _reserveA > 0)
+            {
+                _amountBWei = _amountAWei * _reserveB / _reserveA;
+                _amountBText = TokenAmount.FromWei(_amountBWei, TokenB.Decimals, 18);
+            }
+        }
+        else
+        {
+            _amountBWei = TokenAmount.ToWei(_amountBText, TokenB.Decimals);
+            if (_pairExists && _reserveB > 0)
+            {
+                _amountAWei = _amountBWei * _reserveA / _reserveB;
+                _amountAText = TokenAmount.FromWei(_amountAWei, TokenA.Decimals, 18);
+            }
+        }
+
+        if (_pairExists && _pairTotalSupply > 0 && _reserveA > 0)
+        {
+            var newLiquidity = _amountAWei * _pairTotalSupply / _reserveA;
+            _poolSharePct = (decimal)newLiquidity * 100m / (decimal)(_pairTotalSupply + newLiquidity);
+        }
+        else
+        {
+            _poolSharePct = null;
+        }
+
+        UpdateAddState();
+        StateHasChanged();
+    }
+
+    private void UpdateAddState()
+    {
+        if (string.IsNullOrEmpty(WalletState.ConnectedWallet))
+        {
+            _addState = AddState.Connect;
+            _addActionLabel = "Connect Wallet";
+        }
+        else if (!Settings.IsDeployed || _amountAWei == 0 || _amountBWei == 0)
+        {
+            _addState = AddState.Disabled;
+            _addActionLabel = "Enter an amount";
+        }
+        else if (_amountAWei > _balanceA)
+        {
+            _addState = AddState.Disabled;
+            _addActionLabel = $"Insufficient {TokenA.Symbol} balance";
+        }
+        else if (_amountBWei > _balanceB)
+        {
+            _addState = AddState.Disabled;
+            _addActionLabel = $"Insufficient {TokenB.Symbol} balance";
+        }
+        else if (!TokenA.IsNative && _allowanceA < _amountAWei)
+        {
+            _addState = AddState.ApproveA;
+            _addActionLabel = $"Approve {TokenA.Symbol}";
+        }
+        else if (!TokenB.IsNative && _allowanceB < _amountBWei)
+        {
+            _addState = AddState.ApproveB;
+            _addActionLabel = $"Approve {TokenB.Symbol}";
+        }
+        else
+        {
+            _addState = AddState.Add;
+            _addActionLabel = "Add Liquidity";
+        }
+    }
+
+    private async Task OnAddActionClick()
+    {
+        switch (_addState)
+        {
+            case AddState.Connect:
+                await WalletState.ConnectAsync();
+                await RefreshPoolStateAsync();
+                break;
+            case AddState.ApproveA:
+                await ApproveAsync(TokenA);
+                break;
+            case AddState.ApproveB:
+                await ApproveAsync(TokenB);
+                break;
+            case AddState.Add:
+                await AddLiquidityAsync();
+                break;
+        }
+    }
+
+    private async Task ApproveAsync(TokenInfo token)
+    {
+        try
+        {
+            Snackbar.Add($"Approving {token.Symbol}...", Severity.Info);
+            var data = Contracts.EncodeApprove(token.Address, Settings.RouterAddress, BigInteger.Pow(2, 256) - 1);
+            await WalletState.SendTransactionAsync(token.Address, "0x0", data);
+            Snackbar.Add($"{token.Symbol} approved.", Severity.Success);
+            await RefreshPoolStateAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Approval failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task AddLiquidityAsync()
+    {
+        try
+        {
+            Snackbar.Add("Confirm in your wallet...", Severity.Info);
+            var deadline = new BigInteger(DateTimeOffset.UtcNow.AddMinutes(20).ToUnixTimeSeconds());
+            var minA = _amountAWei - (_amountAWei / 100); // 1% slippage tolerance on the ratio
+            var minB = _amountBWei - (_amountBWei / 100);
+
+            string data;
+            string valueHex = "0x0";
+
+            if (TokenA.IsNative)
+            {
+                data = Contracts.EncodeAddLiquidityEth(TokenB.Address, _amountBWei, minB, minA, WalletState.ConnectedWallet, deadline);
+                valueHex = "0x" + _amountAWei.ToString("x");
+            }
+            else if (TokenB.IsNative)
+            {
+                data = Contracts.EncodeAddLiquidityEth(TokenA.Address, _amountAWei, minA, minB, WalletState.ConnectedWallet, deadline);
+                valueHex = "0x" + _amountBWei.ToString("x");
+            }
+            else
+            {
+                data = Contracts.EncodeAddLiquidity(TokenA.Address, TokenB.Address, _amountAWei, _amountBWei, minA, minB, WalletState.ConnectedWallet, deadline);
+            }
+
+            await WalletState.SendTransactionAsync(Settings.RouterAddress, valueHex, data);
+            Snackbar.Add("Liquidity added.", Severity.Success);
+
+            _amountAText = "";
+            _amountBText = "";
+            _amountAWei = 0;
+            _amountBWei = 0;
+            await RefreshPoolStateAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Add liquidity failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void RecomputeRemoveAmounts()
+    {
+        if (_pairTotalSupply == 0 || _lpBalance == 0)
+        {
+            _removeAmountA = 0;
+            _removeAmountB = 0;
+            return;
+        }
+
+        var liquidityToRemove = _lpBalance * _removePct / 100;
+        _removeAmountA = liquidityToRemove * _reserveA / _pairTotalSupply;
+        _removeAmountB = liquidityToRemove * _reserveB / _pairTotalSupply;
+    }
+
+    private async Task OnRemoveActionClick()
+    {
+        try
+        {
+            RecomputeRemoveAmounts();
+            Snackbar.Add("Approving LP tokens...", Severity.Info);
+
+            var liquidityToRemove = _lpBalance * _removePct / 100;
+            var approveData = Contracts.EncodeApprove(_pairAddress, Settings.RouterAddress, liquidityToRemove);
+            await WalletState.SendTransactionAsync(_pairAddress, "0x0", approveData);
+
+            Snackbar.Add("Confirm removal in your wallet...", Severity.Info);
+            var deadline = new BigInteger(DateTimeOffset.UtcNow.AddMinutes(20).ToUnixTimeSeconds());
+            var minA = _removeAmountA - (_removeAmountA / 100);
+            var minB = _removeAmountB - (_removeAmountB / 100);
+
+            string data = TokenA.IsNative
+                ? Contracts.EncodeRemoveLiquidityEth(TokenB.Address, liquidityToRemove, minB, minA, WalletState.ConnectedWallet, deadline)
+                : TokenB.IsNative
+                    ? Contracts.EncodeRemoveLiquidityEth(TokenA.Address, liquidityToRemove, minA, minB, WalletState.ConnectedWallet, deadline)
+                    : Contracts.EncodeRemoveLiquidity(TokenA.Address, TokenB.Address, liquidityToRemove, minA, minB, WalletState.ConnectedWallet, deadline);
+
+            await WalletState.SendTransactionAsync(Settings.RouterAddress, "0x0", data);
+            Snackbar.Add("Liquidity removed.", Severity.Success);
+            await RefreshPoolStateAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Remove liquidity failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    public void Dispose()
+    {
+        WalletState.OnWalletChanged -= OnWalletChanged;
+    }
+}

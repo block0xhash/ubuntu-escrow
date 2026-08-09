@@ -1,0 +1,280 @@
+/* ===========================================================================
+   GSWAP - visual system
+
+   Deliberately NOT the default web3-app formula (near-black + violet/teal
+   gradient + pill buttons + Inter/Roboto). One solid accent color, no
+   gradients, sharp/chamfered geometry instead of full-pill radii, and a
+   mono-forward type pairing that earns its keep on a page full of numbers.
+=========================================================================== */
+
+:root {
+    --gswap-accent: #f2a53c;       /* single accent - amber, ticker/terminal, not violet */
+    --gswap-accent-dim: #b97f2b;
+    --gswap-ok: #4fae7a;           /* semantic success - distinct hue from the accent */
+    --gswap-bad: #c9584f;
+
+    --gswap-bg: #0a0a0b;
+    --gswap-surface: #131314;
+    --gswap-surface-2: #1a1a1c;
+    --gswap-border: #232325;
+    --gswap-border-soft: #1d1d1f;
+    --gswap-text: #ededec;
+    --gswap-text-dim: #7a7a7d;
+    --gswap-text-dimmer: #9a9a9d;
+
+    --gswap-font-display: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    --gswap-font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+
+    --gswap-radius: 6px;
+}
+
+html, body {
+    background: var(--gswap-bg);
+    scrollbar-color: #2a2a2d var(--gswap-bg);
+    font-family: var(--gswap-font-body);
+}
+
+/* MudBlazor sets its own font-family inline via the theme's Typography config
+   (see MainLayout's _theme) - this covers anything it misses. */
+.mud-typography {
+    font-family: var(--gswap-font-body);
+}
+
+h1, h2, h3, h4, h5, h6,
+.mud-typography-h1, .mud-typography-h2, .mud-typography-h3,
+.mud-typography-h4, .mud-typography-h5, .mud-typography-h6 {
+    font-family: var(--gswap-font-display) !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em;
+}
+
+::selection {
+    background: rgba(242, 165, 60, 0.28);
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+::-webkit-scrollbar-track {
+    background: var(--gswap-bg);
+}
+::-webkit-scrollbar-thumb {
+    background: #232325;
+    border-radius: 999px;
+    border: 2px solid var(--gswap-bg);
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #2e2e31;
+}
+
+a:focus-visible,
+button:focus-visible,
+.mud-button-root:focus-visible,
+.mud-input-control:has(input:focus-visible) {
+    outline: 2px solid var(--gswap-accent) !important;
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+/* ---------------------------------------------------------------------
+   Numeric / monospace treatment - functional, not decorative: prices and
+   balances get tabular figures so digits line up in columns.
+--------------------------------------------------------------------- */
+
+.gswap-amount-input input {
+    font-family: var(--gswap-font-display);
+    font-variant-numeric: tabular-nums;
+}
+
+.gswap-mono {
+    font-family: var(--gswap-font-display);
+    font-variant-numeric: tabular-nums;
+}
+
+.gswap-brand-text {
+    color: var(--gswap-text);
+    font-family: var(--gswap-font-display);
+}
+
+/* ---------------------------------------------------------------------
+   Shared surfaces - sharp corners (6px), hairline borders, no soft pills.
+--------------------------------------------------------------------- */
+
+.gswap-card {
+    border-radius: 10px !important;
+    border: 1px solid var(--gswap-border);
+    transition: border-color 150ms ease;
+}
+
+.gswap-chip {
+    border-radius: var(--gswap-radius) !important;
+}
+
+.gswap-chip.mud-button-filled {
+    transition: filter 120ms ease, transform 120ms ease;
+}
+.gswap-chip.mud-button-filled:hover {
+    filter: brightness(1.08);
+}
+.gswap-chip.mud-button-filled:active {
+    transform: scale(0.98);
+}
+
+.gswap-swap-arrow {
+    background: var(--gswap-surface) !important;
+    border: 3px solid var(--gswap-bg) !important;
+    outline: 1px solid var(--gswap-border);
+    transition: border-color 150ms ease, outline-color 150ms ease;
+}
+.gswap-swap-arrow:hover {
+    outline-color: var(--gswap-accent);
+}
+
+/* ---------------------------------------------------------------------
+   App bar
+--------------------------------------------------------------------- */
+
+.gswap-appbar {
+    background: rgba(10, 10, 11, 0.92) !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--gswap-border-soft);
+}
+
+.gswap-nav .mud-nav-link {
+    color: var(--gswap-text-dimmer) !important;
+    font-family: var(--gswap-font-display);
+    font-weight: 500;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-radius: var(--gswap-radius) !important;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+.gswap-nav .mud-nav-link:hover {
+    background-color: var(--gswap-surface-2) !important;
+    color: var(--gswap-text) !important;
+}
+.gswap-nav .mud-nav-link.active {
+    background: var(--gswap-surface-2) !important;
+    color: var(--gswap-accent) !important;
+    box-shadow: inset 0 0 0 1px var(--gswap-border);
+}
+
+.gswap-network-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--gswap-ok);
+    margin-right: 8px;
+    display: inline-block;
+}
+
+.gswap-wallet-pill {
+    background: var(--gswap-surface);
+    border: 1px solid var(--gswap-border-soft);
+    transition: border-color 120ms ease;
+}
+.gswap-wallet-pill:hover {
+    border-color: #2c2c2f;
+}
+
+.gswap-deploy-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 16px;
+    background: rgba(242, 165, 60, 0.06);
+    border-bottom: 1px solid rgba(242, 165, 60, 0.2);
+    color: var(--gswap-accent);
+    text-align: center;
+    font-family: var(--gswap-font-display);
+    font-size: 0.78rem;
+    margin-top: var(--mud-appbar-height, 64px);
+}
+
+/* ---------------------------------------------------------------------
+   Page shell - flat, no radial "spotlight glow"; confidence comes from
+   contrast and hairlines, not a soft gradient wash.
+--------------------------------------------------------------------- */
+
+.gswap-main {
+    background: var(--gswap-bg);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.gswap-footer {
+    margin-top: auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+    padding: 24px 16px 32px;
+    color: var(--gswap-text-dim);
+    font-family: var(--gswap-font-display);
+    font-size: 0.72rem;
+}
+
+/* ---------------------------------------------------------------------
+   Tabs (Pool page)
+--------------------------------------------------------------------- */
+
+.gswap-tabs .mud-tabs-tabbar-primary {
+    background-color: var(--gswap-surface-2) !important;
+    color: var(--gswap-text-dimmer) !important;
+}
+.gswap-tabs .mud-tab {
+    font-family: var(--gswap-font-display);
+    font-size: 0.76rem;
+    letter-spacing: 0.04em;
+}
+.gswap-tabs .mud-tab.mud-tab-active {
+    color: var(--gswap-text) !important;
+    font-weight: 700;
+}
+.gswap-tabs .mud-tab-slider {
+    height: 2px !important;
+    background: var(--gswap-accent) !important;
+}
+
+/* ---------------------------------------------------------------------
+   Tables (Explore) / lists (token picker)
+--------------------------------------------------------------------- */
+
+.mud-table-root {
+    background: transparent !important;
+}
+.mud-table-root .mud-table-head .mud-table-cell {
+    color: var(--gswap-text-dim) !important;
+    font-family: var(--gswap-font-display);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--gswap-border) !important;
+}
+.mud-table-root .mud-table-body .mud-table-row {
+    border-bottom: 1px solid var(--gswap-border) !important;
+    transition: background-color 120ms ease;
+}
+.mud-table-root .mud-table-body .mud-table-row:hover {
+    background-color: var(--gswap-surface-2) !important;
+}
+.mud-table-root .mud-table-body .mud-table-row:last-child {
+    border-bottom: none !important;
+}
+
+.mud-list-item {
+    transition: background-color 120ms ease;
+}

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect x="2" y="2" width="60" height="60" rx="8" fill="#0a0a0b" stroke="#242424" stroke-width="1.5" />
+
+  <path fill-rule="evenodd" clip-rule="evenodd" fill="#f2a53c" d="
+    M20 14 L44 14 L50 20 L50 44 L44 50 L20 50 L14 44 L14 20 Z
+    M26 22 L38 22 L42 26 L42 38 L38 42 L26 42 L22 38 L22 26 Z
+  " />
+
+  <rect x="41" y="25" width="13" height="14" fill="#0a0a0b" />
+  <rect x="34" y="29" width="14" height="6" fill="#f2a53c" />
+</svg>

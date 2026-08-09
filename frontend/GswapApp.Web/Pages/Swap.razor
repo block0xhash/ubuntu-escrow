@@ -1,0 +1,414 @@
+@page "/"
+@using System.Numerics
+@implements IDisposable
+@inject GswapSettings Settings
+@inject GswapContractService Contracts
+@inject WalletStateService WalletState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Swap - GSWAP</PageTitle>
+
+<MudText Typo="Typo.h5" Class="fw-bold mb-4">Swap</MudText>
+
+<MudPaper Class="pa-4 gswap-card" Style="background:var(--gswap-surface); border:1px solid var(--gswap-border);" Elevation="0">
+
+    <div class="d-flex justify-space-between align-center mb-2">
+        <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);">You pay</MudText>
+        @if (!string.IsNullOrEmpty(WalletState.ConnectedWallet))
+        {
+            <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim); cursor:pointer;" @onclick="UseMaxIn">
+                Balance: @TokenAmount.FromWei(_balanceIn, TokenIn.Decimals) @TokenIn.Symbol (max)
+            </MudText>
+        }
+    </div>
+
+    <div class="d-flex align-center gap-2 mb-1">
+        <MudTextField T="string" @bind-Value="_amountInText" @bind-Value:after="OnAmountInChanged"
+                      Placeholder="0.0" Variant="Variant.Text" Class="gswap-amount-input flex-grow-1"
+                      Style="font-size:1.9rem;" Immediate="true" />
+        <MudButton Variant="Variant.Filled" Class="gswap-chip px-4" Style="background:var(--gswap-surface-2); color:var(--gswap-text);"
+                   OnClick="@(() => PickToken(true))">
+            @TokenIn.Symbol
+            <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" Class="ml-1" />
+        </MudButton>
+    </div>
+
+    <div class="d-flex justify-center my-n3" style="position:relative; z-index:1;">
+        <MudIconButton Icon="@Icons.Material.Filled.SwapVert" Class="gswap-swap-arrow" OnClick="FlipTokens" />
+    </div>
+
+    <div class="d-flex justify-space-between align-center mb-2 mt-4">
+        <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);">You receive</MudText>
+        @if (!string.IsNullOrEmpty(WalletState.ConnectedWallet))
+        {
+            <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);">
+                Balance: @TokenAmount.FromWei(_balanceOut, TokenOut.Decimals) @TokenOut.Symbol
+            </MudText>
+        }
+    </div>
+
+    <div class="d-flex align-center gap-2">
+        <MudTextField T="string" Value="@_amountOutDisplay" ReadOnly="true" Placeholder="0.0"
+                      Variant="Variant.Text" Class="gswap-amount-input flex-grow-1" Style="font-size:1.9rem;" />
+        <MudButton Variant="Variant.Filled" Class="gswap-chip px-4" Style="background:var(--gswap-surface-2); color:var(--gswap-text);"
+                   OnClick="@(() => PickToken(false))">
+            @TokenOut.Symbol
+            <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" Class="ml-1" />
+        </MudButton>
+    </div>
+
+    @if (_quoting)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-3" />
+    }
+    else if (_amountOutWei > 0)
+    {
+        <MudDivider Class="my-3" Style="border-color:var(--gswap-border);" />
+        <div class="d-flex justify-space-between mb-1">
+            <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);">Rate</MudText>
+            <MudText Typo="Typo.caption" Class="gswap-mono">@_rateDisplay</MudText>
+        </div>
+        @if (_priceImpactPct is decimal impact)
+        {
+            <div class="d-flex justify-space-between mb-1">
+                <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);">Price impact</MudText>
+                <MudText Typo="Typo.caption" Class="gswap-mono" Color="@(impact > 5 ? Color.Error : impact > 1 ? Color.Warning : Color.Default)">
+                    @impact.ToString("0.00")%
+                </MudText>
+            </div>
+        }
+        <div class="d-flex justify-space-between">
+            <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);">Minimum received (@(_slippageBps / 100.0)% slippage)</MudText>
+            <MudText Typo="Typo.caption" Class="gswap-mono">@TokenAmount.FromWei(_minimumReceived, TokenOut.Decimals) @TokenOut.Symbol</MudText>
+        </div>
+    }
+
+    <div class="d-flex justify-end mt-2">
+        <MudMenu Icon="@Icons.Material.Filled.Settings" Size="Size.Small">
+            <MudText Typo="Typo.caption" Class="px-4 pt-2" Style="color:var(--gswap-text-dim);">Slippage tolerance</MudText>
+            <MudMenuItem OnClick="@(() => SetSlippage(10))">0.1%</MudMenuItem>
+            <MudMenuItem OnClick="@(() => SetSlippage(50))">0.5%</MudMenuItem>
+            <MudMenuItem OnClick="@(() => SetSlippage(100))">1.0%</MudMenuItem>
+        </MudMenu>
+    </div>
+
+    <MudButton FullWidth="true" Size="Size.Large" Class="gswap-chip mt-2 py-3" Disabled="@(_actionState == ActionState.Disabled)"
+               Color="@(_actionState == ActionState.Error ? Color.Error : Color.Primary)"
+               Variant="Variant.Filled" OnClick="OnActionClick">
+        @_actionLabel
+    </MudButton>
+
+</MudPaper>
+
+@code {
+    private enum ActionState { Disabled, Connect, Approve, Swap, Error }
+
+    private TokenInfo TokenIn = null!;
+    private TokenInfo TokenOut = null!;
+
+    private string _amountInText = "";
+    private string _amountOutDisplay = "0.0";
+    private BigInteger _amountInWei;
+    private BigInteger _amountOutWei;
+    private BigInteger _minimumReceived;
+    private BigInteger _balanceIn;
+    private BigInteger _balanceOut;
+    private BigInteger _allowanceIn;
+    private string _rateDisplay = "";
+    private decimal? _priceImpactPct;
+    private int _slippageBps = 50;
+    private bool _quoting;
+    private string _actionLabel = "Connect Wallet";
+    private ActionState _actionState = ActionState.Connect;
+    private CancellationTokenSource? _quoteCts;
+
+    protected override void OnInitialized()
+    {
+        TokenIn = Settings.NativeEth;
+        TokenOut = Settings.Tokens.FirstOrDefault() ?? Settings.NativeEth;
+        WalletState.OnWalletChanged += OnWalletChanged;
+    }
+
+    private async void OnWalletChanged()
+    {
+        await RefreshBalancesAsync();
+        UpdateActionState();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task PickToken(bool isIn)
+    {
+        var parameters = new DialogParameters<TokenSelectDialog>
+        {
+            { x => x.Exclude, isIn ? TokenOut.Symbol : TokenIn.Symbol }
+        };
+        var dialog = await DialogService.ShowAsync<TokenSelectDialog>("Select a token", parameters);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not TokenInfo picked) return;
+
+        if (isIn) TokenIn = picked; else TokenOut = picked;
+        await RefreshBalancesAsync();
+        await RequestQuoteAsync();
+    }
+
+    private async Task FlipTokens()
+    {
+        (TokenIn, TokenOut) = (TokenOut, TokenIn);
+        _amountInText = _amountOutDisplay == "0.0" ? "" : _amountOutDisplay;
+        await RefreshBalancesAsync();
+        await RequestQuoteAsync();
+    }
+
+    private void SetSlippage(int bps)
+    {
+        _slippageBps = bps;
+        RecomputeMinimumReceived();
+        StateHasChanged();
+    }
+
+    private async Task UseMaxIn()
+    {
+        _amountInText = TokenAmount.FromWei(_balanceIn, TokenIn.Decimals, 18);
+        await RequestQuoteAsync();
+    }
+
+    private async Task OnAmountInChanged() => await RequestQuoteAsync();
+
+    private async Task RequestQuoteAsync()
+    {
+        _quoteCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _quoteCts = cts;
+
+        _amountInWei = TokenAmount.ToWei(_amountInText, TokenIn.Decimals);
+        if (_amountInWei == 0)
+        {
+            _amountOutWei = 0;
+            _amountOutDisplay = "0.0";
+            _priceImpactPct = null;
+            UpdateActionState();
+            StateHasChanged();
+            return;
+        }
+
+        _quoting = true;
+        StateHasChanged();
+
+        try
+        {
+            await Task.Delay(350, cts.Token); // debounce
+            if (cts.IsCancellationRequested) return;
+
+            var path = BuildPath();
+            var amounts = await Contracts.GetAmountsOutAsync(_amountInWei, path);
+            if (cts.IsCancellationRequested) return;
+
+            _amountOutWei = amounts[^1];
+            _amountOutDisplay = TokenAmount.FromWei(_amountOutWei, TokenOut.Decimals, 8);
+            _rateDisplay = $"1 {TokenIn.Symbol} = {TokenAmount.FromWei(amounts[^1] * BigInteger.Pow(10, TokenIn.Decimals) / (_amountInWei == 0 ? 1 : _amountInWei), TokenOut.Decimals, 6)} {TokenOut.Symbol}";
+            RecomputeMinimumReceived();
+            await ComputePriceImpactAsync(path);
+        }
+        catch (TaskCanceledException)
+        {
+            // superseded by a newer keystroke
+        }
+        catch (Exception)
+        {
+            _amountOutWei = 0;
+            _amountOutDisplay = "0.0";
+            _priceImpactPct = null;
+        }
+        finally
+        {
+            if (!cts.IsCancellationRequested)
+            {
+                _quoting = false;
+                UpdateActionState();
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task ComputePriceImpactAsync(string[] path)
+    {
+        _priceImpactPct = null;
+        if (path.Length != 2) return; // only estimated for direct pairs
+
+        try
+        {
+            var pair = await Contracts.GetPairAsync(path[0], path[1]);
+            if (pair == "0x0000000000000000000000000000000000000000") return;
+
+            var reserves = await Contracts.GetReservesAsync(pair);
+            var (reserveIn, reserveOut) = string.Equals(reserves.Token0, path[0], StringComparison.OrdinalIgnoreCase)
+                ? (reserves.Reserve0, reserves.Reserve1)
+                : (reserves.Reserve1, reserves.Reserve0);
+            if (reserveIn == 0 || reserveOut == 0) return;
+
+            // spot price (pre-trade) vs. effective price actually received, in tokenOut-per-tokenIn terms scaled by 1e18
+            var spot = reserveOut * BigInteger.Pow(10, 18) / reserveIn;
+            var effective = _amountOutWei * BigInteger.Pow(10, 18) / _amountInWei;
+            if (spot == 0) return;
+
+            var impact = (decimal)(spot - effective) * 100m / (decimal)spot;
+            _priceImpactPct = impact < 0 ? 0 : impact;
+        }
+        catch
+        {
+            _priceImpactPct = null;
+        }
+    }
+
+    private void RecomputeMinimumReceived()
+    {
+        _minimumReceived = _amountOutWei - (_amountOutWei * _slippageBps / 10_000);
+    }
+
+    private string[] BuildPath()
+    {
+        var inAddr = TokenIn.IsNative ? Settings.WethAddress : TokenIn.Address;
+        var outAddr = TokenOut.IsNative ? Settings.WethAddress : TokenOut.Address;
+        return new[] { inAddr, outAddr };
+    }
+
+    private async Task RefreshBalancesAsync()
+    {
+        if (string.IsNullOrEmpty(WalletState.ConnectedWallet))
+        {
+            _balanceIn = 0;
+            _balanceOut = 0;
+            _allowanceIn = 0;
+            return;
+        }
+
+        try
+        {
+            _balanceIn = await Contracts.GetBalanceAsync(TokenIn.IsNative ? "" : TokenIn.Address, WalletState.ConnectedWallet);
+            _balanceOut = await Contracts.GetBalanceAsync(TokenOut.IsNative ? "" : TokenOut.Address, WalletState.ConnectedWallet);
+            _allowanceIn = TokenIn.IsNative
+                ? BigInteger.Pow(2, 200) // native ETH never needs approval
+                : await Contracts.GetAllowanceAsync(TokenIn.Address, WalletState.ConnectedWallet, Settings.RouterAddress);
+        }
+        catch
+        {
+            // RPC hiccup or contracts not deployed yet - leave balances at last-known value
+        }
+    }
+
+    private void UpdateActionState()
+    {
+        if (string.IsNullOrEmpty(WalletState.ConnectedWallet))
+        {
+            _actionState = ActionState.Connect;
+            _actionLabel = "Connect Wallet";
+        }
+        else if (!Settings.IsDeployed)
+        {
+            _actionState = ActionState.Disabled;
+            _actionLabel = "Contracts not deployed";
+        }
+        else if (_amountInWei == 0)
+        {
+            _actionState = ActionState.Disabled;
+            _actionLabel = "Enter an amount";
+        }
+        else if (_amountInWei > _balanceIn)
+        {
+            _actionState = ActionState.Error;
+            _actionLabel = $"Insufficient {TokenIn.Symbol} balance";
+        }
+        else if (!TokenIn.IsNative && _allowanceIn < _amountInWei)
+        {
+            _actionState = ActionState.Approve;
+            _actionLabel = $"Approve {TokenIn.Symbol}";
+        }
+        else
+        {
+            _actionState = ActionState.Swap;
+            _actionLabel = $"Swap {TokenIn.Symbol} for {TokenOut.Symbol}";
+        }
+    }
+
+    private async Task OnActionClick()
+    {
+        switch (_actionState)
+        {
+            case ActionState.Connect:
+                await WalletState.ConnectAsync();
+                await RefreshBalancesAsync();
+                UpdateActionState();
+                break;
+            case ActionState.Approve:
+                await ApproveAsync();
+                break;
+            case ActionState.Swap:
+                await SwapAsync();
+                break;
+        }
+    }
+
+    private async Task ApproveAsync()
+    {
+        try
+        {
+            Snackbar.Add($"Approving {TokenIn.Symbol}...", Severity.Info);
+            var data = Contracts.EncodeApprove(TokenIn.Address, Settings.RouterAddress, BigInteger.Pow(2, 256) - 1);
+            var txHash = await WalletState.SendTransactionAsync(TokenIn.Address, "0x0", data);
+            Snackbar.Add($"{TokenIn.Symbol} approved.", Severity.Success);
+            await RefreshBalancesAsync();
+            UpdateActionState();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Approval failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task SwapAsync()
+    {
+        try
+        {
+            Snackbar.Add("Confirm the swap in your wallet...", Severity.Info);
+            var path = BuildPath();
+            var deadline = new BigInteger(DateTimeOffset.UtcNow.AddMinutes(20).ToUnixTimeSeconds());
+
+            string data;
+            string to = Settings.RouterAddress;
+            string valueHex = "0x0";
+
+            if (TokenIn.IsNative)
+            {
+                data = Contracts.EncodeSwapEthForTokens(_minimumReceived, path, WalletState.ConnectedWallet, deadline);
+                valueHex = "0x" + _amountInWei.ToString("x");
+            }
+            else if (TokenOut.IsNative)
+            {
+                data = Contracts.EncodeSwapTokensForEth(_amountInWei, _minimumReceived, path, WalletState.ConnectedWallet, deadline);
+            }
+            else
+            {
+                data = Contracts.EncodeSwapTokensForTokens(_amountInWei, _minimumReceived, path, WalletState.ConnectedWallet, deadline);
+            }
+
+            var txHash = await WalletState.SendTransactionAsync(to, valueHex, data);
+            Snackbar.Add("Swap complete.", Severity.Success);
+
+            _amountInText = "";
+            _amountOutWei = 0;
+            _amountOutDisplay = "0.0";
+            await RefreshBalancesAsync();
+            UpdateActionState();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Swap failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    public void Dispose()
+    {
+        WalletState.OnWalletChanged -= OnWalletChanged;
+    }
+}

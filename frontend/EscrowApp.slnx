@@ -2,4 +2,5 @@
   <Project Path="EscrowApp.Core/EscrowApp.Core.csproj" />
   <Project Path="EscrowApp.Infra/EscrowApp.Infra.csproj" />
   <Project Path="EscrowApp.Web/EscrowApp.Web.csproj" />
+  <Project Path="GswapApp.Web/GswapApp.Web.csproj" />
 </Solution>
