@@ -49,6 +49,16 @@ public class GswapContractService
         {'name':'name','type':'function','stateMutability':'view','inputs':[],'outputs':[{'name':'','type':'string'}]}
     ]";
 
+    // Speculative probe, not a real standard: GDOG (and anything shaped like it) taxes
+    // buys/sells at the token level via its own transfer hook, which GswapRouter's
+    // getAmountsOut has no visibility into - it only sees pair reserves. Calling this
+    // and treating failure as "0 bps" lets the frontend correct its quotes for any
+    // token that happens to expose the same view function GDOGToken does, without
+    // hardcoding "if address == GDOG".
+    private const string TaxProbeAbi = @"[
+        {'name':'currentTaxBps','type':'function','stateMutability':'view','inputs':[],'outputs':[{'name':'','type':'uint256'}]}
+    ]";
+
     private readonly GswapSettings _settings;
 
     public GswapContractService(Microsoft.Extensions.Options.IOptions<GswapSettings> settings)
@@ -84,6 +94,25 @@ public class GswapContractService
     {
         var contract = Rpc().Eth.GetContract(Erc20Abi, tokenAddress);
         return await contract.GetFunction("allowance").CallAsync<BigInteger>(owner, spender);
+    }
+
+    /// <summary>
+    /// Current buy/sell tax in bps for a GDOG-shaped token, or 0 for native ETH, plain
+    /// ERC20s, or anything the call reverts against. Used to correct quotes for tokens
+    /// the AMM's own math can't see the tax on - see TaxProbeAbi.
+    /// </summary>
+    public async Task<BigInteger> TryGetTaxBpsAsync(string tokenAddress)
+    {
+        if (string.IsNullOrEmpty(tokenAddress)) return 0;
+        try
+        {
+            var contract = Rpc().Eth.GetContract(TaxProbeAbi, tokenAddress);
+            return await contract.GetFunction("currentTaxBps").CallAsync<BigInteger>();
+        }
+        catch
+        {
+            return 0;
+        }
     }
 
     /// <summary>

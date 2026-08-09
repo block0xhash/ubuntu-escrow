@@ -201,12 +201,25 @@
             if (cts.IsCancellationRequested) return;
 
             var path = BuildPath();
-            var amounts = await Contracts.GetAmountsOutAsync(_amountInWei, path);
+
+            // GDOG (and anything shaped like it) taxes buys/sells at the token level via
+            // its own transfer hook - the AMM only sees pair reserves, so getAmountsOut's
+            // raw number is systematically too high whenever a taxed token is on either
+            // side. Left uncorrected, the minimum-received we'd send is higher than what
+            // *SupportingFeeOnTransferTokens will actually deliver, and the router's own
+            // (correct) real-balance-delta check reverts every single swap.
+            var taxInBps = await Contracts.TryGetTaxBpsAsync(TokenIn.IsNative ? "" : TokenIn.Address);
+            var taxOutBps = await Contracts.TryGetTaxBpsAsync(TokenOut.IsNative ? "" : TokenOut.Address);
             if (cts.IsCancellationRequested) return;
 
-            _amountOutWei = amounts[^1];
+            var effectiveAmountIn = _amountInWei - (_amountInWei * taxInBps / 10_000);
+            var amounts = await Contracts.GetAmountsOutAsync(effectiveAmountIn, path);
+            if (cts.IsCancellationRequested) return;
+
+            var rawOut = amounts[^1];
+            _amountOutWei = rawOut - (rawOut * taxOutBps / 10_000);
             _amountOutDisplay = TokenAmount.FromWei(_amountOutWei, TokenOut.Decimals, 8);
-            _rateDisplay = $"1 {TokenIn.Symbol} = {TokenAmount.FromWei(amounts[^1] * BigInteger.Pow(10, TokenIn.Decimals) / (_amountInWei == 0 ? 1 : _amountInWei), TokenOut.Decimals, 6)} {TokenOut.Symbol}";
+            _rateDisplay = $"1 {TokenIn.Symbol} = {TokenAmount.FromWei(_amountOutWei * BigInteger.Pow(10, TokenIn.Decimals) / (_amountInWei == 0 ? 1 : _amountInWei), TokenOut.Decimals, 6)} {TokenOut.Symbol}";
             RecomputeMinimumReceived();
             await ComputePriceImpactAsync(path);
         }
