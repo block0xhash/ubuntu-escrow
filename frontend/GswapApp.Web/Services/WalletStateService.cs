@@ -82,8 +82,7 @@ public class WalletStateService : IDisposable
     {
         try
         {
-            var accounts = await _jsRuntime.InvokeAsync<string[]>(
-                "eval", "window.ethereum.request({ method: 'eth_requestAccounts' })");
+            var accounts = await _jsRuntime.InvokeAsync<string[]>("gswapWallet.connect");
 
             if (accounts != null && accounts.Length > 0)
             {

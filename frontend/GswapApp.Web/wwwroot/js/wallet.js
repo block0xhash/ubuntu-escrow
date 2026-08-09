@@ -12,6 +12,21 @@ window.gswapWallet = {
         return await window.ethereum.request({ method: 'eth_accounts' });
     },
 
+    // eth_requestAccounts alone only prompts the first time a site asks - once
+    // permission is granted, it silently hands back whatever was approved before, with
+    // no way for the user to pick a different account for this specific connection.
+    // wallet_requestPermissions always reopens MetaMask's account picker, letting them
+    // actively choose (or multi-select) which account(s) this site gets, every time
+    // "Connect Wallet" is clicked.
+    connect: async () => {
+        if (!window.ethereum) throw new Error('No wallet extension found.');
+        await window.ethereum.request({
+            method: 'wallet_requestPermissions',
+            params: [{ eth_accounts: {} }]
+        });
+        return await window.ethereum.request({ method: 'eth_requestAccounts' });
+    },
+
     // Wires MetaMask's own change events straight into the Blazor circuit, so the UI
     // reflects whatever network/account the wallet is actually on right now instead of
     // a value captured once at connect time.
