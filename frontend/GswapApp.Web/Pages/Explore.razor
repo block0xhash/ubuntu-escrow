@@ -1,4 +1,5 @@
 @page "/explore"
+@using System.Globalization
 @using System.Numerics
 @inject GswapSettings Settings
 @inject GswapContractService Contracts
@@ -46,7 +47,7 @@ else
                 <MudTd DataLabel="TVL">
                     @if (context.EthTvl is decimal tvl)
                     {
-                        <span class="gswap-mono">@tvl.ToString("0.0000") ETH</span>
+                        <span class="gswap-mono">@tvl.ToString("0.0000", CultureInfo.InvariantCulture) ETH</span>
                     }
                     else
                     {
@@ -98,11 +99,11 @@ else
                 decimal? tvl = null;
                 if (tokenA.IsNative)
                 {
-                    tvl = decimal.Parse(TokenAmount.FromWei(reserves.Reserve0 * 2, 18, 8));
+                    tvl = decimal.Parse(TokenAmount.FromWei(reserves.Reserve0 * 2, 18, 8), CultureInfo.InvariantCulture);
                 }
                 else if (tokenB.IsNative)
                 {
-                    tvl = decimal.Parse(TokenAmount.FromWei(reserves.Reserve1 * 2, 18, 8));
+                    tvl = decimal.Parse(TokenAmount.FromWei(reserves.Reserve1 * 2, 18, 8), CultureInfo.InvariantCulture);
                 }
 
                 found.Add(new Pool(tokenA.Symbol, tokenB.Symbol, tokenA.Decimals, tokenB.Decimals, reserves.Reserve0, reserves.Reserve1, tvl));

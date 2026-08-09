@@ -1,5 +1,6 @@
 @page "/pool"
 @page "/pool/{TokenASymbol}/{TokenBSymbol}"
+@using System.Globalization
 @using System.Numerics
 @implements IDisposable
 @inject GswapSettings Settings
@@ -55,7 +56,7 @@
             {
                 <div class="d-flex justify-space-between mb-3">
                     <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);">Share of pool</MudText>
-                    <MudText Typo="Typo.caption" Class="gswap-mono">@share.ToString("0.0000")%</MudText>
+                    <MudText Typo="Typo.caption" Class="gswap-mono">@share.ToString("0.0000", CultureInfo.InvariantCulture)%</MudText>
                 </div>
             }
 
