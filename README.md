@@ -8,6 +8,7 @@ Funds are locked in an audited smart contract and only released when both partie
 - ✅ **Verified contract:** [`0xabBDDF83285daa096381E5E4b312afCACA36686a`](https://sepolia-explorer.giwa.io/address/0xabBDDF83285daa096381E5E4b312afCACA36686a) on GIWA Sepolia (chain `91342`)
 - 📄 **Technical design one-pager:** [TECHNICAL_DESIGN.md](TECHNICAL_DESIGN.md)
 - 🎤 **Pitch deck:** [docs/Ubuntu-Pay-Pitch-Deck.pptx](docs/Ubuntu-Pay-Pitch-Deck.pptx)
+- 🔀 **Also in this repo:** [GSWAP & GDOG](GSWAP_GDOG_TECHNICAL_DESIGN.md) — a Uniswap V2-equivalent AMM and a receiver-side-tax launch token, live on GIWA Sepolia
 
 ## What it does
 
