@@ -1,0 +1,24 @@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Select a wallet</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudList T="WalletOption">
+            @foreach (var wallet in Wallets)
+            {
+                <MudListItem T="WalletOption" OnClick="@(() => Select(wallet))" Class="rounded-lg">
+                    <div class="d-flex align-center justify-space-between py-1">
+                        <MudText Typo="Typo.subtitle1" Class="fw-bold">@wallet.Name</MudText>
+                    </div>
+                </MudListItem>
+            }
+        </MudList>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public List<WalletOption> Wallets { get; set; } = new();
+
+    private void Select(WalletOption wallet) => MudDialog.Close(DialogResult.Ok(wallet));
+}

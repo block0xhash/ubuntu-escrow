@@ -4,6 +4,8 @@
 @inject WalletStateService WalletState
 @inject GswapSettings Settings
 @inject IJSRuntime JS
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <MudThemeProvider Theme="_theme" IsDarkMode="true" />
 <MudPopoverProvider />
@@ -184,8 +186,28 @@
 
     private async Task ConnectWallet()
     {
-        await WalletState.ConnectAsync();
-        RecomputeNetworkLabel();
+        try
+        {
+            var wallets = await WalletState.GetAvailableWalletsAsync();
+
+            string? rdns = null;
+            if (wallets.Count > 1)
+            {
+                var dialog = await DialogService.ShowAsync<WalletSelectDialog>(
+                    "Select a wallet",
+                    new DialogParameters<WalletSelectDialog> { { x => x.Wallets, wallets } });
+                var result = await dialog.Result;
+                if (result is null || result.Canceled || result.Data is not WalletOption picked) return;
+                rdns = picked.Rdns;
+            }
+
+            await WalletState.ConnectAsync(rdns);
+            RecomputeNetworkLabel();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Couldn't connect wallet: {ex.Message}", Severity.Error);
+        }
     }
 
     private async Task DisconnectWallet() => await WalletState.DisconnectAsync();

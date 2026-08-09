@@ -2,6 +2,8 @@ using Microsoft.JSInterop;
 
 namespace GswapApp.Web.Services;
 
+public record WalletOption(string Uuid, string Name, string Rdns);
+
 public class WalletStateService : IDisposable
 {
     private readonly IJSRuntime _jsRuntime;
@@ -42,8 +44,8 @@ public class WalletStateService : IDisposable
 
             ConnectedChainIdHex = await _jsRuntime.InvokeAsync<string?>("gswapWallet.getChainId");
 
-            // Respect an explicit prior disconnect: MetaMask itself has no concept of a
-            // site disconnecting, so eth_accounts would otherwise just hand back the
+            // Respect an explicit prior disconnect: no wallet has a concept of a site
+            // disconnecting itself, so eth_accounts would otherwise just hand back the
             // same account and silently undo the user's choice on every reload.
             var disconnected = await _jsRuntime.InvokeAsync<bool>("gswapWallet.isDisconnected");
             if (!disconnected)
@@ -59,8 +61,25 @@ public class WalletStateService : IDisposable
         }
         catch
         {
-            // No injected wallet (window.ethereum undefined) or JS not ready yet -
-            // leave state at its disconnected defaults.
+            // No injected wallet or JS not ready yet - leave state at its disconnected
+            // defaults.
+        }
+    }
+
+    /// <summary>
+    /// Every wallet extension currently installed that announced itself via EIP-6963
+    /// (MetaMask, Phantom's EVM support, Coinbase Wallet, etc. all do). Empty if none
+    /// support it, in which case ConnectAsync(null) falls back to legacy window.ethereum.
+    /// </summary>
+    public async Task<List<WalletOption>> GetAvailableWalletsAsync()
+    {
+        try
+        {
+            return await _jsRuntime.InvokeAsync<List<WalletOption>>("gswapWallet.getAvailableWallets");
+        }
+        catch
+        {
+            return new List<WalletOption>();
         }
     }
 
@@ -78,25 +97,25 @@ public class WalletStateService : IDisposable
         NotifyStateChanged();
     }
 
-    public async Task ConnectAsync()
+    /// <summary>
+    /// rdns identifies a specific wallet from GetAvailableWalletsAsync (pass null when
+    /// there's zero or one candidate and no choice to make). Throws WalletConnectException
+    /// with a real, human-readable message on failure - callers are expected to catch and
+    /// show it, not just log it, since a silently-swallowed connect failure is exactly
+    /// what left this undiagnosable before.
+    /// </summary>
+    public async Task ConnectAsync(string? rdns = null)
     {
-        try
-        {
-            var accounts = await _jsRuntime.InvokeAsync<string[]>("gswapWallet.connect");
+        var accounts = await _jsRuntime.InvokeAsync<string[]>("gswapWallet.connect", rdns);
 
-            if (accounts != null && accounts.Length > 0)
-            {
-                ConnectedWallet = accounts[0];
-            }
-
-            ConnectedChainIdHex = await _jsRuntime.InvokeAsync<string?>("gswapWallet.getChainId");
-            await _jsRuntime.InvokeVoidAsync("gswapWallet.setDisconnected", false);
-            NotifyStateChanged();
-        }
-        catch (Exception ex)
+        if (accounts != null && accounts.Length > 0)
         {
-            Console.WriteLine($"Wallet connection failed: {ex.Message}");
+            ConnectedWallet = accounts[0];
         }
+
+        ConnectedChainIdHex = await _jsRuntime.InvokeAsync<string?>("gswapWallet.getChainId");
+        await _jsRuntime.InvokeVoidAsync("gswapWallet.setDisconnected", false);
+        NotifyStateChanged();
     }
 
     public async Task DisconnectAsync()
@@ -109,10 +128,13 @@ public class WalletStateService : IDisposable
     private void NotifyStateChanged() => OnWalletChanged?.Invoke();
 
     /// <summary>
-    /// Sends a transaction through MetaMask and polls for the receipt, throwing if it
+    /// Sends a transaction through the wallet and polls for the receipt, throwing if it
     /// reverted. `valueHex`/`dataHex` are pre-encoded by the caller (GswapContractService
     /// for calldata, plain "0x0" or a wei hex string for value) - this method only owns
-    /// the wallet round-trip, not ABI encoding.
+    /// the wallet round-trip, not ABI encoding. Goes through gswapWallet.getActiveProvider()
+    /// rather than window.ethereum directly, so it actually uses whichever wallet the user
+    /// selected (see wallet.js) instead of silently defaulting to whatever wins the
+    /// legacy global slot when multiple extensions are installed.
     /// </summary>
     public async Task<string> SendTransactionAsync(string to, string valueHex, string dataHex, string gasHex = "0x4C4B40")
     {
@@ -120,7 +142,8 @@ public class WalletStateService : IDisposable
 
         string script = $@"
             (async () => {{
-                const provider = window.ethereum;
+                const provider = window.gswapWallet.getActiveProvider();
+                if (!provider) throw new Error('No wallet extension found.');
                 const txHash = await provider.request({{
                     method: 'eth_sendTransaction',
                     params: [{{
@@ -153,23 +176,27 @@ public class WalletStateService : IDisposable
     public async Task EnsureCorrectNetworkAsync()
     {
         await _jsRuntime.InvokeVoidAsync("eval", $@"
-            window.ethereum.request({{
-                method: 'wallet_switchEthereumChain',
-                params: [{{ chainId: '{_settings.ChainIdHex}' }}]
-            }}).catch(async (switchError) => {{
-                if (switchError.code === 4902) {{
-                    await window.ethereum.request({{
-                        method: 'wallet_addEthereumChain',
-                        params: [{{
-                            chainId: '{_settings.ChainIdHex}',
-                            chainName: '{_settings.ChainName}',
-                            nativeCurrency: {{ name: 'ETH', symbol: 'ETH', decimals: 18 }},
-                            rpcUrls: ['{_settings.RpcUrl}'],
-                            blockExplorerUrls: ['{_settings.BlockExplorerUrl}']
-                        }}]
-                    }});
-                }}
-            }});
+            (async () => {{
+                const provider = window.gswapWallet.getActiveProvider();
+                if (!provider) throw new Error('No wallet extension found.');
+                await provider.request({{
+                    method: 'wallet_switchEthereumChain',
+                    params: [{{ chainId: '{_settings.ChainIdHex}' }}]
+                }}).catch(async (switchError) => {{
+                    if (switchError.code === 4902) {{
+                        await provider.request({{
+                            method: 'wallet_addEthereumChain',
+                            params: [{{
+                                chainId: '{_settings.ChainIdHex}',
+                                chainName: '{_settings.ChainName}',
+                                nativeCurrency: {{ name: 'ETH', symbol: 'ETH', decimals: 18 }},
+                                rpcUrls: ['{_settings.RpcUrl}'],
+                                blockExplorerUrls: ['{_settings.BlockExplorerUrl}']
+                            }}]
+                        }});
+                    }}
+                }});
+            }})()
         ");
     }
 
