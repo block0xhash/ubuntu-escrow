@@ -17,6 +17,10 @@ builder.Services.AddScoped<WalletStateService>();
 builder.Services.AddScoped<WalletConnectHelper>();
 builder.Services.AddSingleton<GswapContractService>();
 
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<ContractScannerService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ContractScannerService>());
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())

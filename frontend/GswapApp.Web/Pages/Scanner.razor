@@ -1,0 +1,194 @@
+@page "/scanner"
+@using System.Globalization
+@using System.Numerics
+@implements IDisposable
+@inject ContractScannerService ScannerService
+@inject GswapSettings Settings
+
+<PageTitle>Scanner - GSWAP</PageTitle>
+
+<div class="d-flex justify-space-between align-center mb-2">
+    <div>
+        <MudText Typo="Typo.h5" Class="fw-bold">GDOG-01 Scanner</MudText>
+        <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);">
+            @_contracts.Count tracked, newest first
+        </MudText>
+    </div>
+    <MudButton Variant="Variant.Outlined" Class="gswap-chip" StartIcon="@Icons.Material.Filled.Refresh" OnClick="Refresh">
+        Refresh
+    </MudButton>
+</div>
+
+<MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4">
+    Heuristic signals only — verified source, an existing GSWAP pool, standard token
+    shape, renounced ownership. <strong>Not a security audit.</strong> A high score means
+    fewer red flags were found automatically, not that a contract is safe.
+</MudAlert>
+
+@if (_contracts.Count == 0)
+{
+    <MudPaper Class="pa-8 text-center gswap-card" Style="background:var(--gswap-surface); border:1px solid var(--gswap-border);" Elevation="0">
+        <MudText Style="color:var(--gswap-text-dimmer);">No contracts discovered yet — scanning GIWA in the background.</MudText>
+    </MudPaper>
+}
+else
+{
+    <MudPaper Class="gswap-card" Style="background:var(--gswap-surface); border:1px solid var(--gswap-border); overflow-x:auto;" Elevation="0">
+        <MudTable Items="_contracts" Hover="true" Dense="true" Style="background:transparent;">
+            <HeaderContent>
+                <MudTh>Contract</MudTh>
+                <MudTh>Deployer</MudTh>
+                <MudTh>Deployed</MudTh>
+                <MudTh>Block</MudTh>
+                <MudTh>Verified</MudTh>
+                <MudTh>Token</MudTh>
+                <MudTh>Supply</MudTh>
+                <MudTh>Ownership</MudTh>
+                <MudTh>GSWAP liquidity</MudTh>
+                <MudTh>Score</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Contract">
+                    <MudLink Href="@($"{Settings.BlockExplorerUrl}/address/{context.Address}")" Target="_blank" Class="gswap-mono">
+                        @TruncateAddress(context.Address)
+                    </MudLink>
+                    @if (!string.IsNullOrEmpty(context.ContractName))
+                    {
+                        <MudText Typo="Typo.caption" Class="d-block" Style="color:var(--gswap-text-dim);">@context.ContractName</MudText>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Deployer">
+                    @if (!string.IsNullOrEmpty(context.Deployer))
+                    {
+                        <MudLink Href="@($"{Settings.BlockExplorerUrl}/address/{context.Deployer}")" Target="_blank" Class="gswap-mono" Style="color:var(--gswap-text-dimmer);">
+                            @TruncateAddress(context.Deployer)
+                        </MudLink>
+                    }
+                    else
+                    {
+                        <span style="color:var(--gswap-text-dim);">—</span>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Deployed">
+                    <span class="gswap-mono" style="font-size:0.78rem;">@FormatDate(context.DeployedAt)</span>
+                </MudTd>
+                <MudTd DataLabel="Block"><span class="gswap-mono">@context.BlockNumber</span></MudTd>
+                <MudTd DataLabel="Verified">
+                    @if (context.IsVerified == true)
+                    {
+                        <span style="color:var(--gswap-ok);">Verified</span>
+                    }
+                    else if (context.IsVerified == false)
+                    {
+                        <span style="color:var(--gswap-bad);">Not verified</span>
+                    }
+                    else
+                    {
+                        <span style="color:var(--gswap-text-dim);">Unknown</span>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Token">
+                    @(context.LooksLikeErc20 ? (context.TokenSymbol ?? "(no symbol)") : "—")
+                </MudTd>
+                <MudTd DataLabel="Supply">
+                    @if (context.LooksLikeErc20 && context.TotalSupply is BigInteger supply)
+                    {
+                        <span class="gswap-mono">@FormatCompact(supply, context.Decimals)</span>
+                    }
+                    else
+                    {
+                        <span style="color:var(--gswap-text-dim);">—</span>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Ownership">
+                    @if (!context.HasOwnerFunction)
+                    {
+                        <span style="color:var(--gswap-text-dim);">n/a</span>
+                    }
+                    else if (context.OwnershipRenounced)
+                    {
+                        <span style="color:var(--gswap-ok);">Renounced</span>
+                    }
+                    else
+                    {
+                        <span style="color:var(--gswap-text-dimmer);">Owned</span>
+                    }
+                </MudTd>
+                <MudTd DataLabel="GSWAP liquidity">
+                    @if (context.HasGswapLiquidity && context.LiquidityWethReserve is BigInteger weth && context.LiquidityTokenReserve is BigInteger tok)
+                    {
+                        <span class="gswap-mono" style="font-size:0.8rem;">
+                            @TokenAmount.FromWei(weth, 18, 4) ETH<br />
+                            @FormatCompact(tok, context.Decimals) @(context.TokenSymbol ?? "tok")
+                        </span>
+                    }
+                    else
+                    {
+                        <span style="color:var(--gswap-text-dim);">None</span>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Score">
+                    <span class="gswap-mono fw-bold" style="color:@ScoreColor(context.SafetyScore);">@context.SafetyScore</span>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+}
+
+@code {
+    private List<ScannedContract> _contracts = new();
+
+    protected override void OnInitialized()
+    {
+        ScannerService.OnDiscovered += HandleDiscovered;
+        Refresh();
+    }
+
+    private void HandleDiscovered() => InvokeAsync(() =>
+    {
+        Refresh();
+        StateHasChanged();
+    });
+
+    private void Refresh()
+    {
+        _contracts = ScannerService.GetDiscovered().ToList();
+        StateHasChanged();
+    }
+
+    private static string ScoreColor(int score) => score switch
+    {
+        >= 70 => "var(--gswap-ok)",
+        >= 40 => "var(--gswap-accent)",
+        _ => "var(--gswap-bad)",
+    };
+
+    private static string FormatDate(DateTimeOffset dt) =>
+        dt.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) + " UTC";
+
+    /// <summary>Rough K/M/B display formatting for token amounts - not used anywhere
+    /// financial-precision-sensitive, just keeps large supplies/reserves from blowing
+    /// out the table width.</summary>
+    private static string FormatCompact(BigInteger wei, int decimals)
+    {
+        var scale = BigInteger.Pow(10, Math.Max(decimals, 0));
+        if (scale == 0) return wei.ToString(CultureInfo.InvariantCulture);
+
+        var whole = (double)wei / (double)scale;
+        return whole switch
+        {
+            >= 1_000_000_000 => (whole / 1_000_000_000).ToString("0.##", CultureInfo.InvariantCulture) + "B",
+            >= 1_000_000 => (whole / 1_000_000).ToString("0.##", CultureInfo.InvariantCulture) + "M",
+            >= 1_000 => (whole / 1_000).ToString("0.##", CultureInfo.InvariantCulture) + "K",
+            _ => whole.ToString("0.####", CultureInfo.InvariantCulture),
+        };
+    }
+
+    private static string TruncateAddress(string addr) =>
+        string.IsNullOrEmpty(addr) || addr.Length < 10 ? addr : $"{addr[..6]}...{addr[^4..]}";
+
+    public void Dispose()
+    {
+        ScannerService.OnDiscovered -= HandleDiscovered;
+    }
+}
