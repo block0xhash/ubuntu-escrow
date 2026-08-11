@@ -29,10 +29,13 @@ public class GswapSettings
     public string FactoryAddress { get; set; } = ZeroAddress;
     public string RouterAddress { get; set; } = ZeroAddress;
     public string WethAddress { get; set; } = ZeroAddress;
+    public string LockerAddress { get; set; } = ZeroAddress;
     public List<TokenInfo> Tokens { get; set; } = new();
 
     public bool IsDeployed =>
         !IsZero(RouterAddress) && !IsZero(FactoryAddress) && !IsZero(WethAddress);
+
+    public bool IsLockerDeployed => !IsZero(LockerAddress);
 
     private static bool IsZero(string address) =>
         string.IsNullOrWhiteSpace(address) || string.Equals(address, ZeroAddress, StringComparison.OrdinalIgnoreCase);

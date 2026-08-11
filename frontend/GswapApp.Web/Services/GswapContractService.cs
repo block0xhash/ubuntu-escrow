@@ -59,6 +59,13 @@ public class GswapContractService
         {'name':'currentTaxBps','type':'function','stateMutability':'view','inputs':[],'outputs':[{'name':'','type':'uint256'}]}
     ]";
 
+    private const string LockerAbi = @"[
+        {'name':'lockTokens','type':'function','stateMutability':'nonpayable','inputs':[{'name':'token','type':'address'},{'name':'amount','type':'uint256'},{'name':'unlockTime','type':'uint256'}],'outputs':[{'name':'lockId','type':'uint256'}]},
+        {'name':'withdraw','type':'function','stateMutability':'nonpayable','inputs':[{'name':'lockId','type':'uint256'}],'outputs':[]},
+        {'name':'locks','type':'function','stateMutability':'view','inputs':[{'name':'','type':'uint256'}],'outputs':[{'name':'token','type':'address'},{'name':'owner','type':'address'},{'name':'amount','type':'uint256'},{'name':'unlockTime','type':'uint256'},{'name':'withdrawn','type':'bool'}]},
+        {'name':'getLocksByOwner','type':'function','stateMutability':'view','inputs':[{'name':'owner','type':'address'}],'outputs':[{'name':'','type':'uint256[]'}]}
+    ]";
+
     private readonly GswapSettings _settings;
 
     public GswapContractService(Microsoft.Extensions.Options.IOptions<GswapSettings> settings)
@@ -176,6 +183,18 @@ public class GswapContractService
         return await contract.GetFunction("balanceOf").CallAsync<BigInteger>(owner);
     }
 
+    public async Task<List<BigInteger>> GetLocksByOwnerAsync(string owner)
+    {
+        var contract = Rpc().Eth.GetContract(LockerAbi, _settings.LockerAddress);
+        return await contract.GetFunction("getLocksByOwner").CallAsync<List<BigInteger>>(owner);
+    }
+
+    public async Task<LockDto> GetLockAsync(BigInteger lockId)
+    {
+        var contract = Rpc().Eth.GetContract(LockerAbi, _settings.LockerAddress);
+        return await contract.GetFunction("locks").CallDeserializingToObjectAsync<LockDto>(lockId);
+    }
+
     // ---------------------------------------------------------------------
     // Calldata builders - pure offline ABI encoding, no RPC involved. The Razor pages
     // pass the resulting hex string to WalletStateService's eth_sendTransaction flow.
@@ -238,6 +257,18 @@ public class GswapContractService
             .GetData(amountOutMin, path, to, deadline);
     }
 
+    public string EncodeLockTokens(string token, BigInteger amount, BigInteger unlockTime)
+    {
+        var contract = new Web3().Eth.GetContract(LockerAbi, _settings.LockerAddress);
+        return contract.GetFunction("lockTokens").GetData(token, amount, unlockTime);
+    }
+
+    public string EncodeLockWithdraw(BigInteger lockId)
+    {
+        var contract = new Web3().Eth.GetContract(LockerAbi, _settings.LockerAddress);
+        return contract.GetFunction("withdraw").GetData(lockId);
+    }
+
     public string EncodeSwapTokensForEth(
         BigInteger amountIn, BigInteger amountOutMin, string[] path, string to, BigInteger deadline)
     {
@@ -261,4 +292,23 @@ public class PairReservesDto : IFunctionOutputDTO
 
     public string Token0 { get; set; } = "";
     public string Token1 { get; set; } = "";
+}
+
+[FunctionOutput]
+public class LockDto : IFunctionOutputDTO
+{
+    [Parameter("address", "token", 1)]
+    public string Token { get; set; } = "";
+
+    [Parameter("address", "owner", 2)]
+    public string Owner { get; set; } = "";
+
+    [Parameter("uint256", "amount", 3)]
+    public BigInteger Amount { get; set; }
+
+    [Parameter("uint256", "unlockTime", 4)]
+    public BigInteger UnlockTime { get; set; }
+
+    [Parameter("bool", "withdrawn", 5)]
+    public bool Withdrawn { get; set; }
 }

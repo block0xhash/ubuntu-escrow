@@ -1,0 +1,412 @@
+@page "/locker"
+@using System.Globalization
+@using System.Numerics
+@implements IDisposable
+@inject GswapSettings Settings
+@inject GswapContractService Contracts
+@inject WalletStateService WalletState
+@inject WalletConnectHelper WalletConnect
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Locker - GSWAP</PageTitle>
+
+<div class="mb-4">
+    <MudText Typo="Typo.h5" Class="fw-bold">Liquidity Locker</MudText>
+    <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);">
+        Lock LP tokens or any ERC20 until a future date. Permissionless and non-custodial —
+        nobody, including whoever deployed it, can move locked tokens before the unlock time.
+    </MudText>
+</div>
+
+@if (!Settings.IsLockerDeployed)
+{
+    <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4">
+        GswapLocker hasn't been deployed yet — locking and withdrawing will fail until its address is set in appsettings.json.
+    </MudAlert>
+}
+
+<div class="d-flex flex-column flex-md-row gap-4" style="align-items:flex-start;">
+    <MudPaper Class="pa-4 gswap-card" Style="background:var(--gswap-surface); border:1px solid var(--gswap-border); width:100%; max-width:480px;" Elevation="0">
+        <MudText Typo="Typo.subtitle1" Class="fw-bold mb-3">New lock</MudText>
+
+        <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);">Token</MudText>
+        <div class="d-flex align-center gap-2 mb-3 mt-1">
+            <MudButton Variant="Variant.Filled" Class="gswap-chip px-4" Style="background:var(--gswap-surface-2); color:var(--gswap-text);" OnClick="PickToken">
+                @(_token?.Symbol ?? "Select token or paste an LP address") <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" Class="ml-1" />
+            </MudButton>
+        </div>
+        @if (_token is not null && !string.IsNullOrEmpty(WalletState.ConnectedWallet))
+        {
+            <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);" Class="mb-3 d-block">Balance: @TokenAmount.FromWei(_balance, _token.Decimals) @_token.Symbol</MudText>
+        }
+
+        <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);">Amount</MudText>
+        <MudTextField T="string" @bind-Value="_amountText" @bind-Value:after="OnAmountChanged"
+                      Placeholder="0.0" Variant="Variant.Text" Class="gswap-amount-input mb-3" Style="font-size:1.5rem;" Immediate="true" />
+
+        <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);">Unlock date</MudText>
+        <div class="d-flex gap-2 mb-3 mt-1 flex-wrap">
+            @foreach (var preset in _presets)
+            {
+                <MudButton Size="Size.Small" Variant="@(_selectedPresetDays == preset.Days ? Variant.Filled : Variant.Outlined)"
+                           Color="Color.Primary" Class="gswap-chip" OnClick="@(() => ApplyPreset(preset.Days))">@preset.Label</MudButton>
+            }
+        </div>
+        <MudDatePicker @bind-Date="_unlockDate" @bind-Date:after="OnDateChanged" Variant="Variant.Outlined" Margin="Margin.Dense"
+                        MinDate="@DateTime.UtcNow.Date.AddDays(1)" Class="mb-3" />
+
+        @if (_unlockDate is DateTime d)
+        {
+            <MudText Typo="Typo.caption" Style="color:var(--gswap-text-dim);" Class="mb-3 d-block">
+                Unlocks @d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) UTC — @Math.Max(0, (d.Date - DateTime.UtcNow.Date).Days) days from now
+            </MudText>
+        }
+
+        <MudButton FullWidth="true" Size="Size.Large" Class="gswap-chip py-3" Disabled="@(_state == LockState.Disabled)"
+                   Color="Color.Primary" Variant="Variant.Filled" OnClick="OnActionClick">
+            @_actionLabel
+        </MudButton>
+    </MudPaper>
+
+    <MudPaper Class="pa-4 gswap-card flex-grow-1" Style="background:var(--gswap-surface); border:1px solid var(--gswap-border); overflow-x:auto;" Elevation="0">
+        <MudText Typo="Typo.subtitle1" Class="fw-bold mb-3">Your locks</MudText>
+
+        @if (string.IsNullOrEmpty(WalletState.ConnectedWallet))
+        {
+            <MudAlert Severity="Severity.Info" Dense="true">Connect your wallet to see your locks.</MudAlert>
+        }
+        else if (_myLocks.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Dense="true">No locks yet.</MudAlert>
+        }
+        else
+        {
+            <MudTable Items="_myLocks" Hover="true" Dense="true" Style="background:transparent;">
+                <HeaderContent>
+                    <MudTh>Token</MudTh>
+                    <MudTh>Amount</MudTh>
+                    <MudTh>Unlocks</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Token">
+                        <MudLink Href="@($"{Settings.BlockExplorerUrl}/address/{context.Token}")" Target="_blank" Class="gswap-mono">
+                            @(context.Symbol ?? TruncateAddress(context.Token))
+                        </MudLink>
+                    </MudTd>
+                    <MudTd DataLabel="Amount"><span class="gswap-mono">@TokenAmount.FromWei(context.Amount, context.Decimals)</span></MudTd>
+                    <MudTd DataLabel="Unlocks"><span class="gswap-mono" style="font-size:0.78rem;">@FormatDate(context.UnlockTime)</span></MudTd>
+                    <MudTd DataLabel="Status">
+                        @if (context.Withdrawn)
+                        {
+                            <span style="color:var(--gswap-text-dim);">Withdrawn</span>
+                        }
+                        else if (context.UnlockTime <= DateTimeOffset.UtcNow)
+                        {
+                            <span style="color:var(--gswap-ok);">Unlocked</span>
+                        }
+                        else
+                        {
+                            <span style="color:var(--gswap-text-dimmer);">@FormatCountdown(context.UnlockTime)</span>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="">
+                        @if (!context.Withdrawn && context.UnlockTime <= DateTimeOffset.UtcNow)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Class="gswap-chip" OnClick="@(() => WithdrawAsync(context.LockId))">Withdraw</MudButton>
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
+</div>
+
+@code {
+    private enum LockState { Disabled, Connect, Approve, Lock }
+
+    private record PresetOption(string Label, int Days);
+
+    private static readonly PresetOption[] _presets =
+    {
+        new("1 week", 7),
+        new("1 month", 30),
+        new("3 months", 90),
+        new("6 months", 180),
+        new("1 year", 365),
+    };
+
+    private TokenInfo? _token;
+    private string _amountText = "";
+    private BigInteger _amountWei;
+    private BigInteger _balance;
+    private BigInteger _allowance;
+    private DateTime? _unlockDate;
+    private int? _selectedPresetDays = 30;
+
+    private LockState _state = LockState.Connect;
+    private string _actionLabel = "Connect Wallet";
+
+    private List<LockRow> _myLocks = new();
+    private readonly Dictionary<string, (string? Symbol, int Decimals)> _tokenDisplayCache = new(StringComparer.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        WalletState.OnWalletChanged += OnWalletChanged;
+        _unlockDate = DateTime.UtcNow.Date.AddDays(30);
+        await RefreshAsync();
+    }
+
+    private async void OnWalletChanged()
+    {
+        await RefreshAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task PickToken()
+    {
+        var parameters = new DialogParameters<TokenSelectDialog> { { x => x.Exclude, "ETH" } };
+        var dialog = await DialogService.ShowAsync<TokenSelectDialog>("Select a token", parameters);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not TokenInfo picked) return;
+
+        _token = picked;
+        await RefreshAsync();
+    }
+
+    private void ApplyPreset(int days)
+    {
+        _selectedPresetDays = days;
+        _unlockDate = DateTime.UtcNow.Date.AddDays(days);
+        UpdateState();
+    }
+
+    private void OnDateChanged()
+    {
+        _selectedPresetDays = null;
+        UpdateState();
+    }
+
+    private void OnAmountChanged()
+    {
+        _amountWei = _token is null ? 0 : TokenAmount.ToWei(_amountText, _token.Decimals);
+        UpdateState();
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (_token is not null && !string.IsNullOrEmpty(WalletState.ConnectedWallet))
+        {
+            try
+            {
+                _balance = await Contracts.GetBalanceAsync(_token.Address, WalletState.ConnectedWallet);
+                _allowance = Settings.IsLockerDeployed
+                    ? await Contracts.GetAllowanceAsync(_token.Address, WalletState.ConnectedWallet, Settings.LockerAddress)
+                    : 0;
+            }
+            catch
+            {
+                // RPC hiccup - keep last-known state
+            }
+        }
+
+        await RefreshLocksAsync();
+        UpdateState();
+    }
+
+    private async Task RefreshLocksAsync()
+    {
+        if (string.IsNullOrEmpty(WalletState.ConnectedWallet) || !Settings.IsLockerDeployed)
+        {
+            _myLocks = new();
+            return;
+        }
+
+        try
+        {
+            var ids = await Contracts.GetLocksByOwnerAsync(WalletState.ConnectedWallet);
+            var rows = new List<LockRow>();
+            foreach (var id in ids)
+            {
+                var l = await Contracts.GetLockAsync(id);
+                var (symbol, decimals) = await ResolveTokenDisplayAsync(l.Token);
+                rows.Add(new LockRow
+                {
+                    LockId = id,
+                    Token = l.Token,
+                    Symbol = symbol,
+                    Decimals = decimals,
+                    Amount = l.Amount,
+                    UnlockTime = DateTimeOffset.FromUnixTimeSeconds((long)l.UnlockTime),
+                    Withdrawn = l.Withdrawn,
+                });
+            }
+            rows.Reverse();
+            _myLocks = rows;
+        }
+        catch
+        {
+            // RPC hiccup - keep last-known state
+        }
+    }
+
+    private async Task<(string? Symbol, int Decimals)> ResolveTokenDisplayAsync(string tokenAddress)
+    {
+        var known = Settings.AllSelectableTokens().FirstOrDefault(t => string.Equals(t.Address, tokenAddress, StringComparison.OrdinalIgnoreCase));
+        if (known is not null) return (known.Symbol, known.Decimals);
+
+        if (_tokenDisplayCache.TryGetValue(tokenAddress, out var cached)) return cached;
+
+        try
+        {
+            var info = await Contracts.GetErc20InfoAsync(tokenAddress);
+            (string? Symbol, int Decimals) resolved = (info.Symbol, info.Decimals);
+            _tokenDisplayCache[tokenAddress] = resolved;
+            return resolved;
+        }
+        catch
+        {
+            return (null, 18);
+        }
+    }
+
+    private void UpdateState()
+    {
+        if (string.IsNullOrEmpty(WalletState.ConnectedWallet))
+        {
+            _state = LockState.Connect;
+            _actionLabel = "Connect Wallet";
+        }
+        else if (!Settings.IsLockerDeployed || _token is null || _amountWei == 0 || _unlockDate is null)
+        {
+            _state = LockState.Disabled;
+            _actionLabel = _token is null ? "Select a token" : "Enter an amount";
+        }
+        else if (_unlockDate.Value.Date <= DateTime.UtcNow.Date)
+        {
+            _state = LockState.Disabled;
+            _actionLabel = "Unlock date must be in the future";
+        }
+        else if (_amountWei > _balance)
+        {
+            _state = LockState.Disabled;
+            _actionLabel = $"Insufficient {_token.Symbol} balance";
+        }
+        else if (_allowance < _amountWei)
+        {
+            _state = LockState.Approve;
+            _actionLabel = $"Approve {_token.Symbol}";
+        }
+        else
+        {
+            _state = LockState.Lock;
+            _actionLabel = "Lock tokens";
+        }
+    }
+
+    private async Task OnActionClick()
+    {
+        switch (_state)
+        {
+            case LockState.Connect:
+                if (await WalletConnect.TryConnectAsync())
+                {
+                    await RefreshAsync();
+                }
+                break;
+            case LockState.Approve:
+                await ApproveAsync();
+                break;
+            case LockState.Lock:
+                await LockAsync();
+                break;
+        }
+    }
+
+    private async Task ApproveAsync()
+    {
+        if (_token is null) return;
+        try
+        {
+            Snackbar.Add($"Approving {_token.Symbol}...", Severity.Info);
+            var data = Contracts.EncodeApprove(_token.Address, Settings.LockerAddress, BigInteger.Pow(2, 256) - 1);
+            await WalletState.SendTransactionAsync(_token.Address, "0x0", data);
+            Snackbar.Add($"{_token.Symbol} approved.", Severity.Success);
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Approval failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LockAsync()
+    {
+        if (_token is null || _unlockDate is null) return;
+        try
+        {
+            Snackbar.Add("Confirm in your wallet...", Severity.Info);
+            var unlockTime = new BigInteger(new DateTimeOffset(_unlockDate.Value, TimeSpan.Zero).ToUnixTimeSeconds());
+            var data = Contracts.EncodeLockTokens(_token.Address, _amountWei, unlockTime);
+            await WalletState.SendTransactionAsync(Settings.LockerAddress, "0x0", data);
+            Snackbar.Add("Tokens locked.", Severity.Success);
+
+            _amountText = "";
+            _amountWei = 0;
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lock failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task WithdrawAsync(BigInteger lockId)
+    {
+        try
+        {
+            Snackbar.Add("Confirm withdrawal in your wallet...", Severity.Info);
+            var data = Contracts.EncodeLockWithdraw(lockId);
+            await WalletState.SendTransactionAsync(Settings.LockerAddress, "0x0", data);
+            Snackbar.Add("Withdrawn.", Severity.Success);
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Withdraw failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private static string FormatDate(DateTimeOffset dt) =>
+        dt.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) + " UTC";
+
+    private static string FormatCountdown(DateTimeOffset unlockTime)
+    {
+        var remaining = unlockTime - DateTimeOffset.UtcNow;
+        if (remaining <= TimeSpan.Zero) return "Unlocked";
+        if (remaining.TotalDays >= 1) return $"{(int)remaining.TotalDays}d left";
+        if (remaining.TotalHours >= 1) return $"{(int)remaining.TotalHours}h left";
+        return $"{(int)remaining.TotalMinutes}m left";
+    }
+
+    private static string TruncateAddress(string addr) =>
+        string.IsNullOrEmpty(addr) || addr.Length < 10 ? addr : $"{addr[..6]}...{addr[^4..]}";
+
+    public void Dispose()
+    {
+        WalletState.OnWalletChanged -= OnWalletChanged;
+    }
+
+    private class LockRow
+    {
+        public BigInteger LockId { get; set; }
+        public string Token { get; set; } = "";
+        public string? Symbol { get; set; }
+        public int Decimals { get; set; } = 18;
+        public BigInteger Amount { get; set; }
+        public DateTimeOffset UnlockTime { get; set; }
+        public bool Withdrawn { get; set; }
+    }
+}
